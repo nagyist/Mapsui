@@ -1,11 +1,7 @@
 using CommunityToolkit.Maui.Markup;
-using Mapsui.Extensions;
 using Mapsui.Samples.Common;
-using Mapsui.Samples.Common.Maps;
-using Mapsui.Samples.Common.Utilities;
 using Mapsui.Samples.CustomWidget;
 using Mapsui.Samples.Maui.ViewModel;
-using Mapsui.Tiling;
 using Mapsui.UI.Maui;
 
 namespace Mapsui.Samples.Maui.View;
@@ -15,6 +11,7 @@ public sealed class MainPage : ContentPage, IDisposable
     readonly CollectionView collectionView;
     readonly Picker categoryPicker;
     readonly MapControl mapControl = new MapControl();
+    const int menuItemWidth = 220;
 
     public MainPage(MainViewModel mainViewModel)
     {
@@ -40,15 +37,20 @@ public sealed class MainPage : ContentPage, IDisposable
             },
             Children =
             {
-                new VerticalStackLayout()
+                new ScrollView()
                 {
-                    Spacing = 20,
-                    Children =
+                    WidthRequest = menuItemWidth + 40,
+                    Content = new VerticalStackLayout()
                     {
-                        categoryPicker,
-                        collectionView
+                        WidthRequest = menuItemWidth + 20,
+                        Spacing = 20,
+                        Children =
+                        {
+                            categoryPicker,
+                            collectionView
+                        }
                     }
-                }.Column(0).Padding(20),
+                }.Column(0).Padding(10),
                 mapControl.Column(1)
             }
         };
@@ -58,7 +60,7 @@ public sealed class MainPage : ContentPage, IDisposable
     {
         return new Picker
         {
-            WidthRequest = 220,
+            WidthRequest = menuItemWidth,
             ItemsSource = mainViewModel.Categories
         }
         .Bind(Picker.SelectedItemProperty, nameof(mainViewModel.SelectedCategory))
@@ -69,7 +71,8 @@ public sealed class MainPage : ContentPage, IDisposable
     {
         return new CollectionView
         {
-            ItemTemplate = new DataTemplate(() => CreateCollectionViewTemplate()),
+            Margin = 4,
+            ItemTemplate = new DataTemplate(CreateCollectionViewTemplate),
             SelectionMode = SelectionMode.Single,
             ItemsSource = mainViewModel.Samples
         }
@@ -79,17 +82,13 @@ public sealed class MainPage : ContentPage, IDisposable
 
     private static IView CreateCollectionViewTemplate()
     {
-        return new Frame
+        return new Border
         {
-            BorderColor = Color.FromArgb("#DDDDDD"),
-            HasShadow = true,
-            CornerRadius = 4,
             Padding = 10,
-            Margin = new Thickness(0, 2),
+            Margin = new Thickness(2, 2),
+            WidthRequest = menuItemWidth,
             Content = new Label
             {
-                WidthRequest = 200,
-
             }.Bind(Label.TextProperty, nameof(ISample.Name))
         };
     }

@@ -5,6 +5,7 @@ using Mapsui.Layers;
 using Mapsui.Rendering.Skia.Cache;
 using Mapsui.Styles;
 using NUnit.Framework;
+using NUnit.Framework.Legacy;
 using NUnit.Framework.Internal;
 using SkiaSharp;
 using OSPlatform = System.Runtime.InteropServices.OSPlatform;
@@ -25,13 +26,14 @@ public class LabelStyleFeatureSizeTests
             LabelColumn = "test",
         };
 
-        using var feature = new PointFeature(new MPoint(0, 0));
+        var feature = new PointFeature(new MPoint(0, 0));
         feature["test"] = "Mapsui";
 
         using var skPaint = new SKPaint();
-        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, new RenderCache());
+        using var renderCache = new RenderCache();
+        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, renderCache);
 
-        Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize, 0));
+        ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize, 0));
     }
 
     [Test]
@@ -44,20 +46,21 @@ public class LabelStyleFeatureSizeTests
 
         labelStyle.Font.Size *= 2;
 
-        using var feature = new PointFeature(new MPoint(0, 0));
+        var feature = new PointFeature(new MPoint(0, 0));
         feature["test"] = "Mapsui";
 
         using var skPaint = new SKPaint();
-        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, new RenderCache());
+        using var renderCache = new RenderCache();
+        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, renderCache);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize * 2, 0));
+            ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize * 2, 0));
         }
         else
         {
             // on macos it is not two times as big but almost two times with 3 less
-            Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize * 2 - 3, 0));
+            ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize * 2 - 3, 0));
         }
     }
 
@@ -70,13 +73,14 @@ public class LabelStyleFeatureSizeTests
             Offset = new Offset(2, 0),
         };
 
-        using var feature = new PointFeature(new MPoint(0, 0));
+        var feature = new PointFeature(new MPoint(0, 0));
         feature["test"] = "Mapsui";
 
         using var skPaint = new SKPaint();
-        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, new RenderCache());
+        using var renderCache = new RenderCache();
+        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, renderCache);
 
-        Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + 2 * 2, 0));
+        ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + 2 * 2, 0));
     }
 
     [Test]
@@ -88,13 +92,14 @@ public class LabelStyleFeatureSizeTests
             Offset = new Offset(0, 2),
         };
 
-        using var feature = new PointFeature(new MPoint(0, 0));
+        var feature = new PointFeature(new MPoint(0, 0));
         feature["test"] = "Mapsui";
 
         using var skPaint = new SKPaint();
-        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, new RenderCache());
+        using var renderCache = new RenderCache();
+        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, renderCache);
 
-        Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + 2 * 2, 0));
+        ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + 2 * 2, 0));
     }
 
     [Test]
@@ -106,12 +111,13 @@ public class LabelStyleFeatureSizeTests
             Offset = new Offset(2, 2),
         };
 
-        using var feature = new PointFeature(new MPoint(0, 0));
+        var feature = new PointFeature(new MPoint(0, 0));
         feature["test"] = "Mapsui";
 
         using var skPaint = new SKPaint();
-        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, new RenderCache());
+        using var renderCache = new RenderCache();
+        var size = LabelStyleRenderer.FeatureSize(feature, labelStyle, skPaint, renderCache);
 
-        Assert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + Math.Sqrt(2 * 2 + 2 * 2) * 2, 0));
+        ClassicAssert.AreEqual(Math.Round(size, 0), Math.Round(LabelSize + Math.Sqrt(2 * 2 + 2 * 2) * 2, 0));
     }
 }

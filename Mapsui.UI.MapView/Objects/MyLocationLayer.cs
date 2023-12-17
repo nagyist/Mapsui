@@ -1,26 +1,14 @@
 ﻿using Mapsui.Layers;
-using Mapsui.Providers;
 using Mapsui.Styles;
-
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using Mapsui.Animations;
 using Mapsui.Extensions;
 using Mapsui.Nts;
 using Mapsui.Nts.Extensions;
 using Mapsui.Utilities;
 using Animation = Mapsui.Animations.Animation;
-
-#if __MAUI__
 using Mapsui.UI.Maui;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-#else
-using Mapsui.UI.Forms;
-using Xamarin.Forms;
-#endif
 
 namespace Mapsui.UI.Objects;
 
@@ -28,10 +16,10 @@ namespace Mapsui.UI.Objects;
 /// A layer to display a symbol for own location
 /// </summary>
 /// <remarks>
-/// There are two different symbols for own loaction: one is used when there isn't a change in position (still),
+/// There are two different symbols for own location: one is used when there isn't a change in position (still),
 /// and one is used, if the position changes (moving).
 /// </remarks>
-public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
+public class MyLocationLayer : BaseLayer
 {
     private readonly MapView _mapView;
     private readonly GeometryFeature _feature;
@@ -65,7 +53,7 @@ public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
     }
 
     private Position _myLocation = new(0, 0);
-    private readonly ConcurrentHashSet<AnimationEntry<MapView>> _animations = new ();
+    private readonly ConcurrentHashSet<AnimationEntry<MapView>> _animations = new();
     private readonly List<IFeature> _features;
     private AnimationEntry<MapView>? _animationMyDirection;
     private AnimationEntry<MapView>? _animationMyViewDirection;
@@ -281,7 +269,7 @@ public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
                                 if (mapView.MyLocationEnabled)
                                     mapView.Refresh();
                             }
-                            
+
                             return new AnimationResult<MapView>(mapView, false);
                         });
 
@@ -377,7 +365,7 @@ public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
                             _locStyle.SymbolRotation = endRotation;
                             mapView.Refresh();
                         }
-                      
+
                         return new AnimationResult<MapView>(mapView, false);
                     });
 
@@ -497,16 +485,6 @@ public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
         }
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _feature.Dispose();
-        }
-
-        base.Dispose(disposing);
-    }
-
     private bool InternalUpdateMyLocation(Position newLocation)
     {
         var modified = false;
@@ -515,6 +493,7 @@ public class MyLocationLayer : BaseLayer, IModifyFeatureLayer
         {
             _myLocation = newLocation;
             _feature.Geometry = _myLocation.ToPoint();
+            _feature.Modified();
             modified = true;
         }
 

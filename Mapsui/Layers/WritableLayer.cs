@@ -6,9 +6,9 @@ using Mapsui.Utilities;
 
 namespace Mapsui.Layers;
 
-public class WritableLayer : BaseLayer, IModifyFeatureLayer
+public class WritableLayer : BaseLayer
 {
-    private readonly ConcurrentHashSet<IFeature> _cache = new();
+    private readonly ConcurrentHashSet<IFeature> _cache = [];
 
     public override IEnumerable<IFeature> GetFeatures(MRect? box, double resolution)
     {

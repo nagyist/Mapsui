@@ -8,9 +8,7 @@ using Mapsui.Samples.Common.Utilities;
 using Mapsui.Styles;
 using Mapsui.Styles.Thematics;
 using Mapsui.Tiling.Layers;
-using Mapsui.UI;
 using System.IO;
-using System.Reflection;
 using System.Threading.Tasks;
 
 #pragma warning disable IDISP001 // Dispose created
@@ -62,7 +60,7 @@ public class ShapefileTileSample : ISample
         map.Layers.Add(new RasterizingTileLayer(CreateCountryLabelLayer(projectedCountrySource)));
         map.Layers.Add(new RasterizingTileLayer(CreateCityLabelLayer(projectedCitySource)));
         var home = Mercator.FromLonLat(15, 54);
-        map.Home = n => n.CenterOnAndZoomTo(home, n.Resolutions[5]);
+        map.Navigator.CenterOnAndZoomTo(home, map.Navigator.Resolutions[5]);
 
         return map;
     }
@@ -97,7 +95,7 @@ public class ShapefileTileSample : ISample
         var bitmapId = typeof(ShapefileTileSample).LoadBitmapId(@"Images.icon.png");
         var cityMin = new SymbolStyle { BitmapId = bitmapId, SymbolScale = 0.5f };
         var cityMax = new SymbolStyle { BitmapId = bitmapId, SymbolScale = 1f };
-        return new GradientTheme("Population", 1000000, 5000000, cityMin, cityMax);
+        return new GradientTheme("POPULATION", 1000000, 5000000, cityMin, cityMax);
     }
 
     private static IThemeStyle CreateCountryTheme()
@@ -111,7 +109,7 @@ public class ShapefileTileSample : ISample
         var max = new VectorStyle { Outline = new Pen { Color = Color.Black } };
 
         // Create theme using a density from 0 (min) to 400 (max)
-        return new GradientTheme("PopDens", 0, 400, min, max) { FillColorBlend = ColorBlend.Rainbow5 };
+        return new GradientTheme("POPDENS", 0, 400, min, max) { FillColorBlend = ColorBlend.Rainbow5 };
     }
 
     private static GradientTheme CreateCountryLabelTheme()
@@ -135,7 +133,7 @@ public class ShapefileTileSample : ISample
             LabelColumn = "NAME"
         };
 
-        return new GradientTheme("PopDens", 0, 400, lblMin, lblMax);
+        return new GradientTheme("POPDENS", 0, 400, lblMin, lblMax);
     }
 
     private static ILayer CreateCountryLayer(IProvider countrySource)

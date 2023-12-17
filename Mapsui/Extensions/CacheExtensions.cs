@@ -34,7 +34,8 @@ public static class CacheExtensions
                 {
                     var handler = new HttpClientHandler();
                     using var httpClient = new HttpClient(handler);
-                    response = await httpClient.GetStreamAsync(url);
+                    // https://github.com/xamarin/xamarin-android/issues/5264 use ConfigureAwait(false) for Network access
+                    response = await httpClient.GetStreamAsync(url).ConfigureAwait(false);
                 }
 #pragma warning restore IDISP001
 
@@ -44,11 +45,7 @@ public static class CacheExtensions
             {
                 if (response != null)
                 {
-#if NETSTANDARD2_0
-                    response.Dispose();
-#else                        
                     await response.DisposeAsync();
-#endif    
                 }
             }
 

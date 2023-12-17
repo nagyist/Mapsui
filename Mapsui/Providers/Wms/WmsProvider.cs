@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -21,6 +22,7 @@ using Mapsui.Cache;
 using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Logging;
+using Mapsui.Projections;
 using Mapsui.Rendering;
 using Mapsui.Utilities;
 
@@ -35,16 +37,19 @@ namespace Mapsui.Providers.Wms;
 /// and the WmsLayer will set the remaining BoundingBox property and proper requests that changes between the requests.
 /// See the example below.
 /// </remarks>
-public class WmsProvider : IProvider, IProjectingProvider
+public class WmsProvider : IProvider, IProjectingProvider, ILayerFeatureInfo
 {
     private string? _mimeType;
     private readonly Client? _wmsClient;
     private Func<string, Task<Stream>>? _getStreamAsync;
     private readonly IUrlPersistentCache? _persistentCache;
-    private static readonly CrsAxisOrderRegistry _axisOrder = new();
+    private static int[]? _axisOrder;
+    private readonly CrsAxisOrderRegistry _crsAxisOrderRegistry = new();
+
+    public static IUrlPersistentCache? DefaultCache { get; set; }
 
     public WmsProvider(XmlDocument capabilities, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null)
-        : this(new Client(capabilities, getStreamAsync), persistentCache: persistentCache)
+        : this(new Client(capabilities, getStreamAsync), persistentCache: persistentCache ?? DefaultCache)
     {
         InitialiseGetStreamAsyncMethod(getStreamAsync);
     }
@@ -56,17 +61,21 @@ public class WmsProvider : IProvider, IProjectingProvider
     /// <param name="persistentCache"></param>
     /// <param name="wmsVersion">Version number of wms leave null to get the default service version</param>
     /// <param name="getStreamAsync">Download method, leave null for default</param>
-    public static async Task<WmsProvider> CreateAsync(string url, string? wmsVersion = null, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null)
+    /// <param name="userAgent">user Agent</param>
+    public static async Task<WmsProvider> CreateAsync(string url, string? wmsVersion = null, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null, string? userAgent = null)
     {
-        var client = await Client.CreateAsync(url, wmsVersion, getStreamAsync, persistentCache: persistentCache);
-        var provider = new WmsProvider(client, persistentCache: persistentCache);
+        var client = await Client.CreateAsync(url, wmsVersion, getStreamAsync, persistentCache: persistentCache ?? DefaultCache, userAgent);
+        var provider = new WmsProvider(client, persistentCache: persistentCache ?? DefaultCache)
+        {
+            UserAgent = userAgent
+        };
         provider.InitialiseGetStreamAsyncMethod(getStreamAsync);
         return provider;
     }
 
     private WmsProvider(Client wmsClient, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         InitialiseGetStreamAsyncMethod(getStreamAsync);
         _wmsClient = wmsClient;
         TimeOut = 10000;
@@ -142,6 +151,36 @@ public class WmsProvider : IProvider, IProjectingProvider
     public int TimeOut { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating the axis order
+    /// </summary>
+    /// <remarks>
+    /// The axis order is an array of array offsets. It can be either {0, 1} or {1, 0}.
+    /// <para/>If not set explictly, <see cref="CrsAxisOrderRegistry"/> is asked for a value based on <see cref="SRID"/>.</remarks>
+    [AllowNull]
+    public int[] AxisOrder
+    {
+        get
+        {
+            //https://docs.geoserver.org/stable/en/user/services/wfs/axis_order.html#wfs-basics-axis
+            return _axisOrder ?? _crsAxisOrderRegistry[CRS ?? throw new ArgumentException("CRS needs to be set")];
+        }
+        set
+        {
+            if (value != null)
+            {
+                if (value.Length != 2)
+                    throw new ArgumentException("Axis order array must have 2 elements");
+                if (!((value[0] == 0 && value[1] == 1) ||
+                      (value[0] == 1 && value[1] == 0)))
+                    throw new ArgumentException("Axis order array values must be 0 or 1");
+                if (value[0] + value[1] != 1)
+                    throw new ArgumentException("Sum of values in axis order array must 1");
+            }
+            _axisOrder = value;
+        }
+    }
+
+    /// <summary>
     /// Adds a layer to WMS request
     /// </summary>
     /// <remarks>Layer names are case sensitive.</remarks>
@@ -177,12 +216,12 @@ public class WmsProvider : IProvider, IProjectingProvider
     /// <param name="layer"></param>
     /// <param name="name"></param>
     /// <returns></returns>
-    private bool LayerExists(Client.WmsServerLayer layer, string name)
+    private static bool LayerExists(Client.WmsServerLayer layer, string name)
     {
         return name == layer.Name || layer.ChildLayers.Any(childLayer => LayerExists(childLayer, name));
     }
 
-    private bool FindLayer(Client.WmsServerLayer layer, string name, out Client.WmsServerLayer result)
+    private static bool FindLayer(Client.WmsServerLayer layer, string name, out Client.WmsServerLayer result)
     {
         result = layer;
         if (name == layer.Name)
@@ -243,7 +282,7 @@ public class WmsProvider : IProvider, IProjectingProvider
     /// <param name="layer">layer</param>
     /// <param name="name">name of style</param>
     /// <returns>True of style exists</returns>
-    private bool StyleExists(Client.WmsServerLayer layer, string name)
+    private static bool StyleExists(Client.WmsServerLayer layer, string name)
     {
         if (layer.Style.Any(style => name == style.Name)) return true;
         return layer.ChildLayers.Any(childLayer => StyleExists(childLayer, name));
@@ -349,10 +388,10 @@ public class WmsProvider : IProvider, IProjectingProvider
     {
         var resource = GetPreferredMethod();
         var strReq = new StringBuilder(resource.OnlineResource);
-        if (!resource.OnlineResource?.Contains("?") ?? false)
-            strReq.Append("?");
+        if (!resource.OnlineResource?.Contains('?') ?? false)
+            strReq.Append('?');
         if (!strReq.ToString().EndsWith("&") && !strReq.ToString().EndsWith("?"))
-            strReq.Append("&");
+            strReq.Append('&');
         if (box != null)
         {
             var wmsVersion = "1.3.0";
@@ -361,7 +400,7 @@ public class WmsProvider : IProvider, IProjectingProvider
                 wmsVersion = _wmsClient.WmsVersion;
             }
 
-            if (wmsVersion.Equals("1.3.0") && CRS != null && !_axisOrder[CRS])
+            if (wmsVersion.Equals("1.3.0") && CRS != null && !AxisOrder.IsNaturalOrder())
             {
                 // This is a fix for the inverted X/Y coordinates in WMS 1.3.0 suggesed by der1Mac here:
                 // https://github.com/Mapsui/Mapsui/issues/1925#issuecomment-1493411132
@@ -396,7 +435,12 @@ public class WmsProvider : IProvider, IProjectingProvider
             strReq.AppendFormat("&VERSION={0}", wmsVersion);
         }
 
-        strReq.Append("&TRANSPARENT=true");
+        if (Transparent != null)
+        {
+            var transVal = Transparent.Value ? "true" : "false";
+            strReq.Append($"&TRANSPARENT={transVal}");
+        }
+
         strReq.Append("&Styles=");
         if (StylesList != null && StylesList.Count > 0)
         {
@@ -413,6 +457,11 @@ public class WmsProvider : IProvider, IProjectingProvider
 
         return strReq.ToString();
     }
+
+    /// <summary>
+    /// If it should set the Wms Image to Transparent
+    /// </summary>
+    public bool? Transparent { get; set; } = true;
 
     /// <summary>
     /// Gets the URL for a map request base on current settings, the image size and BoundingBox
@@ -463,24 +512,41 @@ public class WmsProvider : IProvider, IProjectingProvider
             throw new InvalidOperationException("Wms Client needs to be set");
         //We prefer get. Seek for supported 'get' method
         for (var i = 0; i < _wmsClient.GetMapRequests.Length; i++)
-            if (_wmsClient.GetMapRequests[i].Type?.ToLower() == "get")
+            if (string.Compare(_wmsClient.GetMapRequests[i].Type, "GET", StringComparison.InvariantCultureIgnoreCase) == 0)
                 return _wmsClient.GetMapRequests[i];
         //Next we prefer the 'post' method
         for (var i = 0; i < _wmsClient.GetMapRequests.Length; i++)
-            if (_wmsClient.GetMapRequests[i].Type?.ToLower() == "post")
+            if (string.Compare(_wmsClient.GetMapRequests[i].Type, "POST", StringComparison.InvariantCultureIgnoreCase) == 0)
                 return _wmsClient.GetMapRequests[i];
         return _wmsClient.GetMapRequests[0];
+    }
+
+    private Client.WmsOnlineResource GetInfoPreferredMethod()
+    {
+        if (_wmsClient == null || _wmsClient.GetFeatureInfoRequests == null)
+            throw new InvalidOperationException("Wms Client needs to be set");
+        //We prefer get. Seek for supported 'get' method
+        for (var i = 0; i < _wmsClient.GetFeatureInfoRequests.Length; i++)
+            if (string.Compare(_wmsClient.GetFeatureInfoRequests[i].Type, "GET", StringComparison.InvariantCultureIgnoreCase) == 0)
+                return _wmsClient.GetFeatureInfoRequests[i];
+        //Next we prefer the 'post' method
+        for (var i = 0; i < _wmsClient.GetFeatureInfoRequests.Length; i++)
+            if (string.Compare(_wmsClient.GetFeatureInfoRequests[i].Type, "POST", StringComparison.InvariantCultureIgnoreCase) == 0)
+                return _wmsClient.GetFeatureInfoRequests[i];
+        return _wmsClient.GetFeatureInfoRequests[0];
     }
 
     public Dictionary<string, string>? ExtraParams { get; set; }
 
     public string? CRS { get; set; }
 
+    public string? UserAgent { get; set; }
+
     public MRect? GetExtent()
     {
         if (CRS != null && _wmsClient != null && _wmsClient.Layer.BoundingBoxes.ContainsKey(CRS))
         {
-            if (_axisOrder[CRS])
+            if (AxisOrder.IsNaturalOrder())
             {
                 return _wmsClient.Layer.BoundingBoxes[CRS];
             }
@@ -519,10 +585,11 @@ public class WmsProvider : IProvider, IProjectingProvider
         {
             // Ignore not supported exception (fixes blazor)
         }
-           
+
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(TimeOut) };
-        var req = new HttpRequestMessage(new HttpMethod(GetPreferredMethod().Type ?? "GET"), url);
-        var response = await client.SendAsync(req);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent ?? "If you use Mapsui please specify a user-agent specific to your app");
+        var req = new HttpRequestMessage(new HttpMethod(GetPreferredMethod().Type?.ToUpper() ?? "GET"), url);
+        var response = await client.SendAsync(req).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -534,6 +601,67 @@ public class WmsProvider : IProvider, IProjectingProvider
             throw new Exception($"Unexpected WMS response content type. Expected - {_mimeType}, got - {response.Content.Headers.ContentType?.MediaType}");
         }
 
-        return await response.Content.ReadAsStreamAsync();
+        return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+    }
+
+    public async Task<IDictionary<string, IEnumerable<IFeature>>> GetFeatureInfoAsync(Viewport viewport, double screenX, double screenY)
+    {
+        IDictionary<string, IEnumerable<IFeature>> result = new Dictionary<string, IEnumerable<IFeature>>();
+        var getFeatureInfo = new GetFeatureInfo
+        {
+            Credentials = Credentials,
+            TimeOut = TimeOut,
+            ExtraParams = ExtraParams,
+            UserAgent = UserAgent,
+        };
+
+        var resource = GetInfoPreferredMethod();
+
+        var wmsVersion = _wmsClient?.WmsVersion ?? "1.3.0";
+        var srs = CRS;
+        var layer = _wmsClient?.Layer.Name ?? LayerList?.FirstOrDefault() ?? string.Empty;
+        var infoFormat = GetFeatureInfoFormat();
+
+        var halfSymbolSize = 1.0 / 2.0; // 1 pixel size
+        var point = viewport.ScreenToWorld(screenX, screenY);
+        var minPoint = viewport.ScreenToWorld(screenX - halfSymbolSize, screenY - halfSymbolSize);
+        var maxPoint = viewport.ScreenToWorld(screenX + halfSymbolSize, screenY + halfSymbolSize);
+
+        var extent = new MRect(minPoint.X, minPoint.Y, maxPoint.X, maxPoint.Y);
+        var featureInfo = await getFeatureInfo.RequestAsync(resource.OnlineResource!, wmsVersion!, infoFormat, srs!, layer!, extent.MinX, extent.MinY, extent.MaxX, extent.MaxY, (int)screenX, (int)screenY, (int)viewport.Width, (int)viewport.Height).ConfigureAwait(false);
+        if (featureInfo != null)
+        {
+            if (featureInfo.LayerName != null)
+            {
+                var feature = new PointFeature(point);
+                if (featureInfo.FeatureInfos != null)
+                {
+                    foreach (var it in featureInfo.FeatureInfos)
+                    {
+                        foreach (var itKey in it)
+                        {
+                            feature[itKey.Key] = itKey.Value;
+                        }
+                    }
+                }
+
+                result[featureInfo.LayerName] = new List<IFeature>() { feature };
+            }
+
+        }
+
+
+        return result;
+    }
+
+    private string GetFeatureInfoFormat()
+    {
+        var result = _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.ApplicationVndOGCGml, StringComparison.InvariantCultureIgnoreCase)) ??
+                     _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.TextXmlSubtypeGml, StringComparison.InvariantCultureIgnoreCase)) ??
+                     _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.TextXml, StringComparison.InvariantCultureIgnoreCase));
+
+        result ??= "text/xml";
+
+        return result;
     }
 }

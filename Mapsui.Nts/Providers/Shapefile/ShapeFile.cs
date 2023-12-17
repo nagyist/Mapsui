@@ -131,7 +131,7 @@ public enum ShapeType
 /// M and Z values in a shapefile is ignored by Mapsui.
 /// </para>
 /// </remarks>
-public class ShapeFile : IProvider, IDisposable
+public class ShapeFile : IProvider, IDisposable, IProviderExtended
 {
 
     static ShapeFile()
@@ -203,7 +203,7 @@ public class ShapeFile : IProvider, IDisposable
         //Initialize DBF
         var dbfFile = Path.ChangeExtension(filename, ".dbf");
         if (File.Exists(dbfFile))
-            _dbaseFile = new DbaseReader(dbfFile);
+            _dbaseFile = new DbaseReader(dbfFile, Id);
         //Parse shape header
         ParseHeader();
         //Read projection file
@@ -212,6 +212,8 @@ public class ShapeFile : IProvider, IDisposable
             ParseProjection();
         }
     }
+
+    public int Id { get; } = BaseLayer.NextId();
 
     /// <summary>
     /// Gets the <see cref="Shapefile.ShapeType">shape geometry type</see> in this shapefile.
@@ -450,8 +452,7 @@ public class ShapeFile : IProvider, IDisposable
     {
         if (FilterDelegate != null) //Apply filtering
         {
-            using var fdr = GetFeature(oid);
-            return fdr?.Geometry;
+            return GetFeature(oid)?.Geometry;
         }
 
         return ReadGeometry(oid);
@@ -601,7 +602,7 @@ public class ShapeFile : IProvider, IDisposable
     ///</summary>
     /// <param name="i">Integer to swap</param>
     /// <returns>Byte Order swapped int32</returns>
-    private int SwapByteOrder(int i)
+    private static int SwapByteOrder(int i)
     {
         var buffer = BitConverter.GetBytes(i);
         Array.Reverse(buffer, 0, buffer.Length);
@@ -878,7 +879,7 @@ public class ShapeFile : IProvider, IDisposable
     {
         if (_dbaseFile != null)
         {
-            var dr = _dbaseFile.GetFeature(rowId, dt ?? new List<GeometryFeature>());
+            var dr = _dbaseFile.GetFeature(rowId);
             if (dr != null)
             {
                 dr.Geometry = ReadGeometry(rowId);
@@ -905,7 +906,7 @@ public class ShapeFile : IProvider, IDisposable
 
                 foreach (var index in objectList)
                 {
-                    var feature = _dbaseFile?.GetFeature(index, features);
+                    var feature = _dbaseFile?.GetFeature(index);
                     if (feature != null)
                     {
                         feature.Geometry = ReadGeometry(index);

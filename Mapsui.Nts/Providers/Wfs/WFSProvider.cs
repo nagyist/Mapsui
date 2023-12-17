@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.XPath;
 using Mapsui.Cache;
@@ -75,11 +76,16 @@ public class WFSProvider : IProvider, IDisposable
     private string? _sridOverride;
     private string? _proxyUrl;
     private ICredentials? _credentials;
+    private readonly CrsAxisOrderRegistry _crsAxisOrderRegistry = new();
+    private readonly SemaphoreSlim _init = new(1, 1);
+    private bool _initialized;
 
     // The type of geometry can be specified in case of unprecise information (e.g. 'GeometryAssociationType').
     // It helps to accelerate the rendering process significantly.
 
 
+    /// <summary> Default Cache </summary>
+    public static IUrlPersistentCache? DefaultCache { get; set; }
 
     /// <summary>
     /// This cache (obtained from an already instantiated dataprovider that retrieves a featuretype hosted by the same service) 
@@ -88,7 +94,11 @@ public class WFSProvider : IProvider, IDisposable
     public IXPathQueryManager? GetCapabilitiesCache
     {
         get => _featureTypeInfoQueryManager;
-        set => _featureTypeInfoQueryManager = value;
+        set
+        {
+            _featureTypeInfoQueryManager = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -101,7 +111,7 @@ public class WFSProvider : IProvider, IDisposable
     /// </summary>
     /// <remarks>
     /// The axis order is an array of array offsets. It can be either {0, 1} or {1, 0}.
-    /// <para/>If not set explictly, <see cref="AxisOrderRegistry"/> is asked for a value based on <see cref="SRID"/>.</remarks>
+    /// <para/>If not set explictly, <see cref="CrsAxisOrderRegistry"/> is asked for a value based on <see cref="SRID"/>.</remarks>
     [AllowNull]
     public int[] AxisOrder
     {
@@ -109,7 +119,7 @@ public class WFSProvider : IProvider, IDisposable
             //https://docs.geoserver.org/stable/en/user/services/wfs/axis_order.html#wfs-basics-axis
             _axisOrder ?? (_wfsVersion == WFSVersionEnum.WFS_1_0_0
                 ? new[] { 0, 1 }
-                : new AxisOrderRegistry()[CRS ?? throw new ArgumentException("CRS needs to be set")]);
+                : _crsAxisOrderRegistry[CRS ?? throw new ArgumentException("CRS needs to be set")]);
         set
         {
             if (value != null)
@@ -136,7 +146,11 @@ public class WFSProvider : IProvider, IDisposable
     public bool QuickGeometries
     {
         get => _quickGeometries;
-        set => _quickGeometries = value;
+        set
+        {
+            _quickGeometries = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -147,7 +161,11 @@ public class WFSProvider : IProvider, IDisposable
     public bool MultiGeometries
     {
         get => _multiGeometries;
-        set => _multiGeometries = value;
+        set
+        {
+            _multiGeometries = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -158,7 +176,11 @@ public class WFSProvider : IProvider, IDisposable
     public bool GetFeatureGetRequest
     {
         get => _getFeatureGetRequest;
-        set => _getFeatureGetRequest = value;
+        set
+        {
+            _getFeatureGetRequest = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -167,7 +189,11 @@ public class WFSProvider : IProvider, IDisposable
     public IFilter? OgcFilter
     {
         get => _ogcFilter;
-        set => _ogcFilter = value;
+        set
+        {
+            _ogcFilter = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -176,7 +202,11 @@ public class WFSProvider : IProvider, IDisposable
     public List<string> Labels
     {
         get => _labels;
-        set => _labels = value;
+        set
+        {
+            _labels = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -185,7 +215,11 @@ public class WFSProvider : IProvider, IDisposable
     public ICredentials? Credentials
     {
         get => _credentials;
-        set => _credentials = value;
+        set
+        {
+            _credentials = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -194,7 +228,11 @@ public class WFSProvider : IProvider, IDisposable
     public string? ProxyUrl
     {
         get => _proxyUrl;
-        set => _proxyUrl = value;
+        set
+        {
+            _proxyUrl = value;
+            _initialized = false;
+        }
     }
 
     /// <summary>
@@ -218,7 +256,7 @@ public class WFSProvider : IProvider, IDisposable
         string? proxyUrl = null,
         ICredentials? credentials = null)
     {
-        var provider = new WFSProvider(getCapabilitiesUri, nsPrefix, featureType, geometryType, wfsVersion, persistentCache);
+        var provider = new WFSProvider(getCapabilitiesUri, nsPrefix, featureType, geometryType, wfsVersion, persistentCache ?? DefaultCache);
         if (!string.IsNullOrEmpty(proxyUrl))
         {
             provider.ProxyUrl = proxyUrl;
@@ -256,7 +294,7 @@ public class WFSProvider : IProvider, IDisposable
         ICredentials? credentials = null)
     {
         return await CreateAsync(
-            getCapabilitiesUri, 
+            getCapabilitiesUri,
             nsPrefix,
             featureType,
             GeometryTypeEnum.Unknown,
@@ -310,23 +348,24 @@ public class WFSProvider : IProvider, IDisposable
     /// <returns></returns>
     public async Task InitAsync()
     {
-        await GetFeatureTypeInfoAsync();
-    }
+        if (_initialized)
+            return;
+        
+        await _init.WaitAsync();
+        try
+        {
+            // test again could be already initialized
+            if (_initialized)
+                return;
+            
+            await GetFeatureTypeInfoAsync();
+        }
+        finally
+        {
+            _init.Release();
+        }
 
-    /// <summary>
-    /// Use this constructor for initializing this dataprovider with all necessary
-    /// parameters to gather metadata from 'GetCapabilities' contract.
-    /// </summary>
-    /// <param name="getCapabilitiesUri">The URL for the 'GetCapabilities' request.</param>
-    /// <param name="nsPrefix">
-    /// Use an empty string or 'null', if there is no prefix for the featuretype.
-    /// </param>
-    /// <param name="featureType">The name of the feature type</param>
-    /// <param name="wfsVersion">The desired WFS Server version.</param>
-    /// <param name="persistentCache">persistent Cache Interface</param>
-    private WFSProvider(string getCapabilitiesUri, string nsPrefix, string featureType, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
-        : this(getCapabilitiesUri, nsPrefix, featureType, GeometryTypeEnum.Unknown, wfsVersion, persistentCache: persistentCache)
-    {
+        _initialized = true;
     }
 
     /// <summary>
@@ -340,7 +379,7 @@ public class WFSProvider : IProvider, IDisposable
     [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning")]
     public WFSProvider(WfsFeatureTypeInfo featureTypeInfo, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfo = featureTypeInfo;
 
         if (wfsVersion == WFSVersionEnum.WFS_1_0_0)
@@ -371,11 +410,10 @@ public class WFSProvider : IProvider, IDisposable
     /// <param name="featureType">The name of the feature type</param>
     /// <param name="wfsVersion">The desired WFS Server version.</param>
     /// <param name="persistentCache">Persistent Cache</param>
-    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning")]
     public WFSProvider(string serviceUri, string nsPrefix, string featureTypeNamespace, string featureType,
                string geometryName, GeometryTypeEnum geometryType, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfo = new WfsFeatureTypeInfo(serviceUri, nsPrefix, featureTypeNamespace, featureType,
                                                   geometryName, geometryType);
 
@@ -432,7 +470,7 @@ public class WFSProvider : IProvider, IDisposable
     public WFSProvider(IXPathQueryManager getCapabilitiesCache, string nsPrefix, string featureType,
                GeometryTypeEnum geometryType, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfoQueryManager = getCapabilitiesCache;
 
         if (wfsVersion == WFSVersionEnum.WFS_1_0_0)
@@ -644,6 +682,7 @@ public class WFSProvider : IProvider, IDisposable
                 _sridOverride = _featureTypeInfo.SRID = value.Substring(CrsHelper.EpsgPrefix.Length);
             else
                 _sridOverride = value?.Substring(CrsHelper.EpsgPrefix.Length);
+            _initialized = false;
         }
     }
 
@@ -667,7 +706,7 @@ public class WFSProvider : IProvider, IDisposable
     /// </summary>
     private async Task GetFeatureTypeInfoAsync()
     {
-    
+
         _featureTypeInfo = new WfsFeatureTypeInfo();
         var config = new WFSClientHttpConfigurator(_textResources);
 
@@ -970,7 +1009,7 @@ public class WFSProvider : IProvider, IDisposable
         geomType ??= string.Empty;
 
         // Remove prefix
-        if (geomType.Contains(":"))
+        if (geomType.Contains(':'))
             geomType = geomType.Substring(geomType.IndexOf(":", StringComparison.Ordinal) + 1);
 
         _featureTypeInfo.Geometry = new WfsFeatureTypeInfo.GeometryInfo
@@ -978,12 +1017,12 @@ public class WFSProvider : IProvider, IDisposable
             GeometryName = geomName,
             GeometryType = geomType
         };
-        
+
     }
 
     private void ResolveFeatureType(string featureType)
     {
-        if (featureType.Contains(":"))
+        if (featureType.Contains(':'))
         {
             var split = featureType.Split(':');
             _nsPrefix = split[0];

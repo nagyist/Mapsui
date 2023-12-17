@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using Mapsui.Layers;
 using NUnit.Framework;
+using NUnit.Framework.Legacy;
 
 namespace Mapsui.Tests.Layers;
 
@@ -12,8 +13,8 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer();
-        var layer2 = new MemoryLayer();
+        using var layer1 = new MemoryLayer();
+        using var layer2 = new MemoryLayer();
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
 
@@ -24,9 +25,9 @@ public class LayerCollectionTests
         layerCollection.CopyTo(array, 0);
 
         // assert
-        Assert.AreEqual(2, array.Length);
-        Assert.NotNull(array[0]);
-        Assert.NotNull(array[1]);
+        ClassicAssert.AreEqual(2, array.Length);
+        ClassicAssert.NotNull(array[0]);
+        ClassicAssert.NotNull(array[1]);
     }
 
     [Test]
@@ -34,8 +35,8 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer();
-        var layer2 = new MemoryLayer();
+        using var layer1 = new MemoryLayer();
+        using var layer2 = new MemoryLayer();
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
 
@@ -47,11 +48,11 @@ public class LayerCollectionTests
         layerCollection.CopyTo(array, 0);
 
         // assert
-        Assert.AreEqual(2, array.Length);
-        Assert.NotNull(array[0], "first element not null");
+        ClassicAssert.AreEqual(2, array.Length);
+        ClassicAssert.NotNull(array[0], "first element not null");
         // We have no crash but the seconds element is null.
         // This might have unpleasant consequences.
-        Assert.Null(array[1], "second element IS null");
+        ClassicAssert.Null(array[1], "second element IS null");
     }
 
     [Test]
@@ -59,9 +60,9 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer() { Name = "Layer1" };
-        var layer2 = new MemoryLayer() { Name = "Layer2" };
-        var layer3 = new MemoryLayer() { Name = "Layer3" };
+        using var layer1 = new MemoryLayer() { Name = "Layer1" };
+        using var layer2 = new MemoryLayer() { Name = "Layer2" };
+        using var layer3 = new MemoryLayer() { Name = "Layer3" };
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
 
@@ -70,13 +71,13 @@ public class LayerCollectionTests
 
         // assert
         var list = layerCollection.ToList();
-        Assert.AreEqual(3, list.Count);
-        Assert.NotNull(list[0]);
-        Assert.AreEqual("Layer1", list[0].Name);
-        Assert.NotNull(list[1]);
-        Assert.AreEqual("Layer3", list[1].Name);
-        Assert.NotNull(list[2]);
-        Assert.AreEqual("Layer2", list[2].Name);
+        ClassicAssert.AreEqual(3, list.Count);
+        ClassicAssert.NotNull(list[0]);
+        ClassicAssert.AreEqual("Layer1", list[0].Name);
+        ClassicAssert.NotNull(list[1]);
+        ClassicAssert.AreEqual("Layer3", list[1].Name);
+        ClassicAssert.NotNull(list[2]);
+        ClassicAssert.AreEqual("Layer2", list[2].Name);
     }
 
     [Test]
@@ -84,9 +85,9 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer() { Name = "Layer1" };
-        var layer2 = new MemoryLayer() { Name = "Layer2" };
-        var layer3 = new MemoryLayer() { Name = "Layer3" };
+        using var layer1 = new MemoryLayer() { Name = "Layer1" };
+        using var layer2 = new MemoryLayer() { Name = "Layer2" };
+        using var layer3 = new MemoryLayer() { Name = "Layer3" };
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
 
@@ -97,11 +98,11 @@ public class LayerCollectionTests
 
         // assert
         var list = layerCollection.ToList();
-        Assert.AreEqual(2, list.Count);
-        Assert.NotNull(list[0]);
-        Assert.AreEqual("Layer2", list[0].Name);
-        Assert.NotNull(list[1]);
-        Assert.AreEqual("Layer3", list[1].Name);
+        ClassicAssert.AreEqual(2, list.Count);
+        ClassicAssert.NotNull(list[0]);
+        ClassicAssert.AreEqual("Layer2", list[0].Name);
+        ClassicAssert.NotNull(list[1]);
+        ClassicAssert.AreEqual("Layer3", list[1].Name);
     }
 
     [Test]
@@ -109,9 +110,9 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer() { Name = "Layer1" };
-        var layer2 = new MemoryLayer() { Name = "Layer2" };
-        var layer3 = new MemoryLayer() { Name = "Layer3" };
+        using var layer1 = new MemoryLayer() { Name = "Layer1" };
+        using var layer2 = new MemoryLayer() { Name = "Layer2" };
+        using var layer3 = new MemoryLayer() { Name = "Layer3" };
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
         layerCollection.Add(layer3);
@@ -121,13 +122,13 @@ public class LayerCollectionTests
 
         // assert
         var list = layerCollection.ToList();
-        Assert.AreEqual(3, list.Count);
-        Assert.NotNull(list[0]);
-        Assert.AreEqual("Layer1", list[0].Name);
-        Assert.NotNull(list[1]);
-        Assert.AreEqual("Layer3", list[1].Name);
-        Assert.NotNull(list[2]);
-        Assert.AreEqual("Layer2", list[2].Name);
+        ClassicAssert.AreEqual(3, list.Count);
+        ClassicAssert.NotNull(list[0]);
+        ClassicAssert.AreEqual("Layer1", list[0].Name);
+        ClassicAssert.NotNull(list[1]);
+        ClassicAssert.AreEqual("Layer3", list[1].Name);
+        ClassicAssert.NotNull(list[2]);
+        ClassicAssert.AreEqual("Layer2", list[2].Name);
     }
 
     [Test]
@@ -135,9 +136,9 @@ public class LayerCollectionTests
     {
         // arrange
         var layerCollection = new LayerCollection();
-        var layer1 = new MemoryLayer() { Name = "Layer1" };
-        var layer2 = new MemoryLayer() { Name = "Layer2" };
-        var layer3 = new MemoryLayer() { Name = "Layer3" };
+        using var layer1 = new MemoryLayer() { Name = "Layer1" };
+        using var layer2 = new MemoryLayer() { Name = "Layer2" };
+        using var layer3 = new MemoryLayer() { Name = "Layer3" };
         layerCollection.Add(layer1);
         layerCollection.Add(layer2);
         layerCollection.Add(layer3);
@@ -147,12 +148,12 @@ public class LayerCollectionTests
 
         // assert
         var list = layerCollection.ToList();
-        Assert.AreEqual(3, list.Count);
-        Assert.NotNull(list[0]);
-        Assert.AreEqual("Layer2", list[0].Name);
-        Assert.NotNull(list[1]);
-        Assert.AreEqual("Layer3", list[1].Name);
-        Assert.NotNull(list[2]);
-        Assert.AreEqual("Layer1", list[2].Name);
+        ClassicAssert.AreEqual(3, list.Count);
+        ClassicAssert.NotNull(list[0]);
+        ClassicAssert.AreEqual("Layer2", list[0].Name);
+        ClassicAssert.NotNull(list[1]);
+        ClassicAssert.AreEqual("Layer3", list[1].Name);
+        ClassicAssert.NotNull(list[2]);
+        ClassicAssert.AreEqual("Layer1", list[2].Name);
     }
 }

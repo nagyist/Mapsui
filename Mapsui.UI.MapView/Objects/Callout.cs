@@ -7,31 +7,15 @@ using Mapsui.Extensions;
 using Mapsui.Nts;
 using Mapsui.Styles;
 using Mapsui.UI.Objects;
-#if __MAUI__
 using Mapsui.UI.Maui.Extensions;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
-
 using Color = Microsoft.Maui.Graphics.Color;
-using KnownColor = Mapsui.UI.Maui.KnownColor;
 using Point = Microsoft.Maui.Graphics.Point;
-#else
-using Mapsui.UI.Forms.Extensions;
-using Xamarin.Forms;
-using CalloutStyle = Mapsui.Styles.CalloutStyle;
 
-using Color = Xamarin.Forms.Color;
-using KnownColor = Xamarin.Forms.Color;
-using Point = Xamarin.Forms.Point;
-#endif
-
-#if __MAUI__
 namespace Mapsui.UI.Maui;
-#else
-namespace Mapsui.UI.Forms;
-#endif
 
-public class Callout : IFeatureProvider, IDisposable, INotifyPropertyChanged
+public class Callout : IFeatureProvider, INotifyPropertyChanged
 {
     private readonly Pin _pin;
 
@@ -61,7 +45,7 @@ public class Callout : IFeatureProvider, IDisposable, INotifyPropertyChanged
     private double _rotation;
     private bool _rotateWithMap;
     private double _rectRadius;
-    private Thickness _padding = new Thickness(6);
+    private Thickness _padding = new(6);
     private double _spacing = 2;
     private double _maxWidth = 300.0;
     private bool _isClosableByClick = true;
@@ -616,11 +600,6 @@ public class Callout : IFeatureProvider, IDisposable, INotifyPropertyChanged
     {
         UpdateContent();
         UpdateCalloutStyle();
-    }
-
-    public virtual void Dispose()
-    {
-        Feature.Dispose();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

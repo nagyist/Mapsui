@@ -18,23 +18,8 @@ using Mapsui.Styles;
 
 namespace Mapsui.Layers;
 
-public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvider>, IDisposable, ILayer
+public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvider>, IDisposable, ILayer, ILayerFeatureInfo
 {
-    public ImageLayer()
-    {
-        Style = new RasterStyle();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _startFetchTimer?.Dispose();
-        }
-
-        base.Dispose(disposing);
-    }
-
     private class FeatureSets
     {
         public long TimeRequested { get; set; }
@@ -48,6 +33,18 @@ public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvid
     private readonly Timer? _startFetchTimer;
     private IProvider? _dataSource;
     private readonly int _numberOfFeaturesReturned;
+
+    public ImageLayer()
+    {
+        Style = new RasterStyle();
+        _startFetchTimer = new Timer(StartFetchTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+        _numberOfFeaturesReturned = 1;
+    }
+
+    public ImageLayer(string layerName) : this()
+    {
+        Name = layerName;
+    }
 
     /// <summary>
     /// Delay before fetching a new wms image from the server
@@ -67,13 +64,6 @@ public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvid
             // the Extent is already created on the creation of the Provider.
             Extent = DataSource?.GetExtent();
         }
-    }
-
-    public ImageLayer(string layerName)
-    {
-        Name = layerName;
-        _startFetchTimer = new Timer(StartFetchTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
-        _numberOfFeaturesReturned = 1;
     }
 
     private void StartFetchTimerElapsed(object? state)
@@ -197,5 +187,25 @@ public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvid
         {
             cache.Features = new List<RasterFeature>();
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _startFetchTimer?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    public async Task<IDictionary<string, IEnumerable<IFeature>>> GetFeatureInfoAsync(Viewport viewport, double screenX, double screenY)
+    {
+        if (DataSource is ILayerFeatureInfo featureInfo)
+        {
+            return await featureInfo.GetFeatureInfoAsync(viewport, screenX, screenY).ConfigureAwait(false);
+        }
+
+        return new Dictionary<string, IEnumerable<IFeature>>();
     }
 }

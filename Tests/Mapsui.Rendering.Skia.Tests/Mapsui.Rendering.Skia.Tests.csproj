@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks Condition="'$(SolutionName)' == 'Mapsui.Mac.Legacy'">net48</TargetFrameworks>
-    <TargetFrameworks Condition="'$(SolutionName)' != 'Mapsui.Mac.Legacy'">net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -382,7 +381,30 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Images\OriginalRegression\AnimatedBusSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\AnimatedPointsSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingAddLineSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingAddPointSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingAddPolygonSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingDrawingLineSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingDrawingPolygonSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingModifySample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingRotateSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\EditingScaleSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\ImageDataSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\LoggingWidgetSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\ModifyScaleSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\MyLocationLayerSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\PolygonGeometrySample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\ProjectionTestSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\RasterizingTileLayerWithDynamicPointsSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\RasterizingTileLayerWithThousandsOfPolygonsSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\WfsPointsSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\WmsBasilicataSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\WmsOpenSeaSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\WmsProjectionDotSpatialSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\WmsProjectionSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\WmsProjectionTilingSample.Regression.png" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,7 @@ using Mapsui.Projections;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
 using NUnit.Framework;
+using NUnit.Framework.Legacy;
 
 namespace Mapsui.Tests.Projections;
 
@@ -26,7 +27,7 @@ public class ProjectionTests
         var enumeration = geometry.Coordinates;
 
         // assert
-        Assert.AreEqual(expectedCoordinateCount, enumeration.Count());
+        ClassicAssert.AreEqual(expectedCoordinateCount, enumeration.Count());
     }
 
     [Test]
@@ -40,7 +41,7 @@ public class ProjectionTests
         var enumeration = geometry.Coordinates;
 
         // assert
-        Assert.AreEqual(expectedCoordinateCount, enumeration.Count());
+        ClassicAssert.AreEqual(expectedCoordinateCount, enumeration.Count());
     }
 
     [Test]
@@ -49,7 +50,7 @@ public class ProjectionTests
         // arrange
         var multiPolygon = (MultiPolygon)_wktReader.Read("MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))");
         var projectedMultiPolygon = multiPolygon.Copy();
-        using var feature = new GeometryFeature(projectedMultiPolygon);
+        var feature = new GeometryFeature(projectedMultiPolygon);
         var projection = new Projection();
 
         // act
@@ -61,8 +62,8 @@ public class ProjectionTests
 
         for (var i = 0; i < coordinates.Count; i++)
         {
-            Assert.AreNotEqual(coordinates[i].X, projectedCoordinates[i].X);
-            Assert.AreNotEqual(coordinates[i].Y, projectedCoordinates[i].Y);
+            ClassicAssert.AreNotEqual(coordinates[i].X, projectedCoordinates[i].X);
+            ClassicAssert.AreNotEqual(coordinates[i].Y, projectedCoordinates[i].Y);
         }
     }
 
@@ -72,7 +73,7 @@ public class ProjectionTests
         // arrange
         var multiPolygon = (MultiPolygon)_wktReader.Read("MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))");
         var projectedMultiPolygon = multiPolygon.Copy();
-        using var feature = new GeometryFeature(projectedMultiPolygon);
+        var feature = new GeometryFeature(projectedMultiPolygon);
         var projection = new DotSpatialProjection();
 
         // act
@@ -84,8 +85,8 @@ public class ProjectionTests
 
         for (var i = 0; i < coordinates.Count; i++)
         {
-            Assert.AreNotEqual(coordinates[i].X, projectedCoordinates[i].X);
-            Assert.AreNotEqual(coordinates[i].Y, projectedCoordinates[i].Y);
+            ClassicAssert.AreNotEqual(coordinates[i].X, projectedCoordinates[i].X);
+            ClassicAssert.AreNotEqual(coordinates[i].Y, projectedCoordinates[i].Y);
         }
     }
 
@@ -100,6 +101,6 @@ public class ProjectionTests
         using var shapeFile = new ShapeFile(countriesPath, false, true, new DotSpatialProjection());
 
         // assert
-        Assert.AreEqual(shapeFile.CRS, "EPSG:4326");
+        ClassicAssert.AreEqual(shapeFile.CRS, "EPSG:4326");
     }
 }

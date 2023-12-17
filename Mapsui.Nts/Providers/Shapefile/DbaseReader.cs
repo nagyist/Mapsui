@@ -10,6 +10,8 @@ using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Mapsui.Features;
+using Mapsui.Layers;
 using Mapsui.Nts.Providers.Shapefile.Indexing;
 
 #pragma warning disable SYSLIB0001
@@ -40,12 +42,13 @@ internal sealed class DbaseReader : IDisposable
     private BinaryReader? _br;
     private bool _headerIsParsed;
 
-    public DbaseReader(string filename)
+    public DbaseReader(string filename, int? id = null)
     {
         if (!File.Exists(filename))
             throw new FileNotFoundException($"Could not find file \"{filename}\"");
         _filename = filename;
         _headerIsParsed = false;
+        _id = id ?? BaseLayer.NextId();
     }
 
     private bool _isOpen;
@@ -124,31 +127,18 @@ internal sealed class DbaseReader : IDisposable
             {
                 ColumnName = Encoding.UTF7.GetString(_br.ReadBytes(11)).Replace("\0", "").Trim()
             };
-            var fieldtype = _br.ReadChar();
-            switch (fieldtype)
+            var fieldType = _br.ReadChar();
+            _dbaseColumns[i].DataType = fieldType switch
             {
-                case 'L':
-                    _dbaseColumns[i].DataType = typeof(bool);
-                    break;
-                case 'C':
-                    _dbaseColumns[i].DataType = typeof(string);
-                    break;
-                case 'D':
-                    _dbaseColumns[i].DataType = typeof(DateTime);
-                    break;
-                case 'N':
-                    _dbaseColumns[i].DataType = typeof(double);
-                    break;
-                case 'F':
-                    _dbaseColumns[i].DataType = typeof(float);
-                    break;
-                case 'B':
-                    _dbaseColumns[i].DataType = typeof(byte[]);
-                    break;
-                default:
-                    throw new NotSupportedException("Invalid or unknown DBase field type '" + fieldtype +
-                                                     "' in column '" + _dbaseColumns[i].ColumnName + "'");
-            }
+                'L' => typeof(bool),
+                'C' => typeof(string),
+                'D' => typeof(DateTime),
+                'N' => typeof(double),
+                'F' => typeof(float),
+                'B' => typeof(byte[]),
+                _ => throw new NotSupportedException("Invalid or unknown DBase field type '" + fieldType +
+                                                                     "' in column '" + _dbaseColumns[i].ColumnName + "'"),
+            };
             _dbaseColumns[i].Address = _br.ReadInt32();
 
             int length = _br.ReadByte();
@@ -385,6 +375,7 @@ internal sealed class DbaseReader : IDisposable
 
     private Encoding? _encoding;
     private Encoding _fileEncoding = Encoding.UTF7;
+    private readonly int _id;
 
     /// <summary>
     /// Gets or sets the <see cref="System.Text.Encoding"/> used for parsing strings from the DBase DBF file.
@@ -404,13 +395,13 @@ internal sealed class DbaseReader : IDisposable
     /// <param name="oid"></param>
     /// <param name="table"></param>
     /// <returns></returns>
-    internal GeometryFeature? GetFeature(uint oid, IEnumerable<GeometryFeature> table)
+    internal GeometryFeature? GetFeature(uint oid)
     {
         if (oid >= _numberOfRecords)
             throw new ArgumentException("Invalid DataRow requested at index " + oid.ToString(CultureInfo.InvariantCulture));
         _fs!.Seek(_headerLength + oid * _recordLength, 0);
 
-        var dr = new GeometryFeature();
+        var dr = new GeometryFeature(FeatureId.CreateId(_id, oid));
 
         if (_br!.ReadChar() == '*') return null; // is record marked deleted?
 

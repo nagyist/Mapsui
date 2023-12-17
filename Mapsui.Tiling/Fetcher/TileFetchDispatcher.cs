@@ -23,8 +23,8 @@ public class TileFetchDispatcher : IFetchDispatcher, INotifyPropertyChanged
     private bool _viewportIsModified;
     private readonly ITileCache<IFeature?> _tileCache;
     private readonly IDataFetchStrategy _dataFetchStrategy;
-    private readonly ConcurrentQueue<TileInfo> _tilesToFetch = new();
-    private readonly ConcurrentHashSet<TileIndex> _tilesInProgress = new();
+    private readonly ConcurrentQueue<TileInfo> _tilesToFetch = [];
+    private readonly ConcurrentHashSet<TileIndex> _tilesInProgress = [];
     private readonly ITileSchema? _tileSchema;
     private readonly FetchMachine _fetchMachine;
     private readonly Func<TileInfo, Task<IFeature?>> _fetchTileAsFeature;
@@ -66,23 +66,22 @@ public class TileFetchDispatcher : IFetchDispatcher, INotifyPropertyChanged
             if (_tilesToFetch.TryDequeue(out var tileInfo))
             {
                 _tilesInProgress.Add(tileInfo.Index);
-                method = async () => await FetchOnThreadAsync(tileInfo);
+                method = async () => await FetchOnThreadAsync(tileInfo).ConfigureAwait(false);
                 return true;
             }
 
-            Busy = _tilesInProgress.Count > 0 || _tilesToFetch.Count > 0;
+            Busy = _tilesInProgress.Count > 0 || !_tilesToFetch.IsEmpty;
             // else the queue is empty, we are done.
             method = null;
             return false;
         }
     }
 
-    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP001:Dispose created")]
     private async Task FetchOnThreadAsync(TileInfo tileInfo)
     {
         try
         {
-            var feature = await _fetchTileAsFeature(tileInfo);
+            var feature = await _fetchTileAsFeature(tileInfo).ConfigureAwait(false);
             FetchCompleted(tileInfo, feature, null);
         }
         catch (Exception ex)
@@ -109,7 +108,7 @@ public class TileFetchDispatcher : IFetchDispatcher, INotifyPropertyChanged
                 _tileCache.Add(tileInfo.Index, feature);
             _tilesInProgress.TryRemove(tileInfo.Index);
 
-            Busy = _tilesInProgress.Count > 0 || _tilesToFetch.Count > 0;
+            Busy = _tilesInProgress.Count > 0 || !_tilesToFetch.IsEmpty;
 
             DataChanged?.Invoke(this, new DataChangedEventArgs(exception, false, tileInfo));
         }
@@ -157,7 +156,7 @@ public class TileFetchDispatcher : IFetchDispatcher, INotifyPropertyChanged
         if (tilesToFetch.Count() > MaxTilesInOneRequest)
         {
             tilesToFetch = tilesToFetch.Take(MaxTilesInOneRequest).ToList();
-            Logger.Log(LogLevel.Warning, 
+            Logger.Log(LogLevel.Warning,
                 $"The number tiles requested is '{tilesToFetch.Count()}' which exceeds the maximum " +
                 $"of '{MaxTilesInOneRequest}'. The number of tiles will be limited to the maximum. Note, " +
                 $"that this may indicate a bug or configuration error");
@@ -165,6 +164,6 @@ public class TileFetchDispatcher : IFetchDispatcher, INotifyPropertyChanged
 
         _tilesToFetch.Clear();
         _tilesToFetch.AddRange(tilesToFetch);
-        if (_tilesToFetch.Count > 0) Busy = true;
+        if (!_tilesToFetch.IsEmpty) Busy = true;
     }
 }

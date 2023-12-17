@@ -2,11 +2,11 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <IPhoneResourcePrefix>Resources</IPhoneResourcePrefix>
-    <TargetFramework>net6.0-ios15.4</TargetFramework>
+    <TargetFrameworks>net7.0-ios16.0;net8.0-ios</TargetFrameworks>
     <ImplicitUsings>true</ImplicitUsings>
     <PackageId>Mapsui.iOS</PackageId>
     <!--<RuntimeIdentifiers>iossimulator-x64</RuntimeIdentifiers>-->
-    <Description>Xamarin iOS map components based on the Mapsui library</Description>
+    <Description>.Net iOS map components based on the Mapsui library</Description>
     <PackageTags>$(PackageTags) ios</PackageTags>
 		<IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -25,6 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SkiaSharp.Views" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <PackageReference Include="SkiaSharp.NativeAssets.iOS" />
   </ItemGroup>
   <Import Project="..\Mapsui.UI.Shared\Mapsui.UI.Shared.projitems" Label="Shared" />
 </Project>

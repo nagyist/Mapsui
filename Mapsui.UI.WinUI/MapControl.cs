@@ -4,20 +4,16 @@
 
 // This file was originally created by Paul den Dulk (Geodan) as part of SharpMap
 
-#nullable enable
+#pragma warning disable IDISP001 // Dispose created.
+#pragma warning disable IDISP002 // Dispose member.
 
 using System;
-using System.Threading.Tasks;
 using Windows.Devices.Sensors;
 using Windows.Foundation;
 using Windows.System;
 using Mapsui.Extensions;
 using Mapsui.Logging;
 using Mapsui.Utilities;
-using NetTopologySuite.GeometriesGraph;
-using Windows.Graphics.Display;
-#if __WINUI__
-using System.Runtime.Versioning;
 using Mapsui.UI.WinUI.Extensions;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -28,28 +24,8 @@ using Microsoft.UI.Xaml.Shapes;
 using SkiaSharp.Views.Windows;
 using HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment;
 using VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment;
-#else
-using Mapsui.UI.WinUI.Extensions;
-using Windows.UI;
-using Windows.UI.Core;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Shapes;
-using SkiaSharp.Views.UWP;
-using HorizontalAlignment = Windows.UI.Xaml.HorizontalAlignment;
-using VerticalAlignment = Windows.UI.Xaml.VerticalAlignment;
-#endif
 
-#if __WINUI__
-#if !HAS_UNO_WINUI
-[assembly: SupportedOSPlatform("windows10.0.18362.0")]
-#endif
 namespace Mapsui.UI.WinUI;
-#else
-namespace Mapsui.UI.Uwp;
-#endif
 
 public partial class MapControl : Grid, IMapControl, IDisposable
 {
@@ -95,10 +71,29 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
         Tapped += OnSingleTapped;
         DoubleTapped += OnDoubleTapped;
+        PointerMoved += MapControl_PointerMoved;
+        KeyDown += MapControl_KeyDown;
+        KeyUp += MapControl_KeyUp;
 
         var orientationSensor = SimpleOrientationSensor.GetDefault();
         if (orientationSensor != null)
             orientationSensor.OrientationChanged += (sender, args) => RunOnUIThread(() => Refresh());
+    }
+
+    private void MapControl_KeyUp(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Shift)
+        {
+            this.ShiftPressed = true;
+        }
+    }
+
+    private void MapControl_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Shift)
+        {
+            this.ShiftPressed = false;
+        }
     }
 
     private void OnManipulationCompleted(object sender, ManipulationCompletedRoutedEventArgs e)
@@ -112,15 +107,36 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         _virtualRotation = Map.Navigator.Viewport.Rotation;
     }
 
+    private void MapControl_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        var position = e.GetCurrentPoint(this).Position.ToMapsui();
+        if (HandleMoving(position, true, 0, e.KeyModifiers == VirtualKeyModifiers.Shift))
+            e.Handled = true;
+    }
+
     private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         var tapPosition = e.GetPosition(this).ToMapsui();
+        if (HandleTouchingTouched(tapPosition, true, 2, ShiftPressed))
+        {
+            e.Handled = true;
+            return;
+        }
+
         OnInfo(CreateMapInfoEventArgs(tapPosition, tapPosition, 2));
     }
+
+    public bool ShiftPressed { get; set; }
 
     private void OnSingleTapped(object sender, TappedRoutedEventArgs e)
     {
         var tabPosition = e.GetPosition(this).ToMapsui();
+        if (HandleTouchingTouched(tabPosition, true, 1, ShiftPressed))
+        {
+            e.Handled = true;
+            return;
+        }
+
         OnInfo(CreateMapInfoEventArgs(tabPosition, tabPosition, 1));
     }
 
@@ -154,11 +170,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private void MapControl_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
         var currentPoint = e.GetCurrentPoint(this);
-#if __WINUI__
         var currentMousePosition = new MPoint(currentPoint.Position.X, currentPoint.Position.Y);
-#else
-        var currentMousePosition = new MPoint(currentPoint.RawPosition.X, currentPoint.RawPosition.Y);
-#endif
         var mouseWheelDelta = currentPoint.Properties.MouseWheelDelta;
 
         Map.Navigator.MouseWheelZoom(mouseWheelDelta, currentMousePosition);
@@ -179,7 +191,6 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void RunOnUIThread(Action action)
     {
-#if __WINUI__
         Catch.TaskRun(() => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
         {
             try
@@ -191,19 +202,6 @@ public partial class MapControl : Grid, IMapControl, IDisposable
                 Logger.Log(LogLevel.Error, ex.Message, ex);
             }
         }));
-#else
-        Catch.TaskRun(async () => await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Error, ex.Message, ex);
-            }
-        }));
-#endif
     }
 
     private void Canvas_PaintSurface(object? sender, SKPaintSurfaceEventArgs e)
@@ -256,13 +254,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private float GetPixelDensity()
     {
-#if HAS_UNO
-         return (float)DisplayInformation.GetForCurrentView().ResolutionScale / 100.0f;
-#elif __WINUI__
         return (float)(XamlRoot?.RasterizationScale ?? 1f);
-#else
-        return (float)DisplayInformation.GetForCurrentView().RawPixelsPerViewPixel;
-#endif
     }
 
 #pragma warning disable IDISP023 // Don't use reference types in finalizer context
@@ -276,11 +268,15 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     {
         if (disposing)
         {
-            (_canvas as IDisposable)?.Dispose();
-#if __IOS__ || __MACOS__ || __ANDROID__ || NETSTANDARD
-            (_selectRectangle as IDisposable)?.Dispose();
+#if HAS_UNO           
+            _canvas?.Dispose();
+            _selectRectangle?.Dispose();
+#endif
+#if HAS_UNO || __WINUI__
+            _invalidateTimer?.Dispose();
 #endif
             _map?.Dispose();
+
         }
         CommonDispose(disposing);
 
@@ -290,7 +286,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     }
 
 #if !(__ANDROID__ )
-#if __IOS__ || __MACOS__ || NETSTANDARD || HAS_UNO
+#if __IOS__ || __MACOS__ || HAS_UNO
     public new void Dispose()
 #else 
     public void Dispose()

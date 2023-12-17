@@ -12,8 +12,6 @@ using Mapsui.Extensions;
 using Mapsui.Logging;
 using Mapsui.Styles;
 
-#pragma warning disable VSTHRD003
-
 namespace Mapsui.Providers.Wms;
 
 /// <summary>
@@ -152,7 +150,7 @@ public class Client
 
 
 
-    private Func<string, Task<Stream>> _getStreamAsync;
+    private readonly Func<string, Task<Stream>> _getStreamAsync;
     private string[]? _exceptionFormats;
     private Capabilities.WmsServiceDescription _serviceDescription;
     private readonly IUrlPersistentCache? _persistentCache;
@@ -161,6 +159,7 @@ public class Client
     private WmsOnlineResource[]? _getFeatureInfoRequests;
     private string _wmsVersion = "1.0.0"; // set default value
     private WmsServerLayer _layer;
+    private readonly string? _userAgent;
 
     /// <summary>
     /// Gets the service description
@@ -209,15 +208,16 @@ public class Client
     /// <param name="wmsVersion">WMS version number, null to get the default from service</param>
     /// <param name="getStreamAsync">Download method, leave null for default</param>
     /// <param name="persistentCache">persistent Cache</param>
-    public static async Task<Client> CreateAsync(string url, string? wmsVersion = null, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null)
+    /// <param name="userAgent">user Agent</param>
+    public static async Task<Client> CreateAsync(string url, string? wmsVersion = null, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null, string? userAgent = null)
     {
-        var client = new Client(getStreamAsync, persistentCache);
+        var client = new Client(getStreamAsync, persistentCache, userAgent);
 
         var strReq = new StringBuilder(url);
-        if (!url.Contains("?"))
-            strReq.Append("?");
-        if (!strReq.ToString().EndsWith("&") && !strReq.ToString().EndsWith("?"))
-            strReq.Append("&");
+        if (!url.Contains('?'))
+            strReq.Append('?');
+        if (!strReq.ToString().EndsWith("&") && !strReq.ToString().EndsWith('?'))
+            strReq.Append('&');
         if (!url.ToLower().Contains("service=wms"))
             strReq.AppendFormat("SERVICE=WMS&");
         if (!url.ToLower().Contains("request=getcapabilities"))
@@ -234,14 +234,16 @@ public class Client
     /// </summary>
     /// <param name="getStreamAsync">Download method, leave null for default</param>
     /// <param name="persistentCache">persistent Cache</param>
-    private Client(Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null)
+    private Client(Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null, string? userAgent = null)
     {
+        _userAgent = userAgent;
         _persistentCache = persistentCache;
         _getStreamAsync = InitialiseGetStreamAsyncMethod(getStreamAsync);
     }
 
-    public Client(XmlDocument capabilitiesXmlDocument, Func<string, Task<Stream>>? getStreamAsync = null)
+    public Client(XmlDocument capabilitiesXmlDocument, Func<string, Task<Stream>>? getStreamAsync = null, string? userAgent = null)
     {
+        _userAgent = userAgent;
         _getStreamAsync = InitialiseGetStreamAsyncMethod(getStreamAsync);
         _nsmgr = new XmlNamespaceManager(capabilitiesXmlDocument.NameTable);
         ParseCapabilities(capabilitiesXmlDocument);
@@ -259,6 +261,7 @@ public class Client
         {
             var handler = new HttpClientHandler();
             using var client = new HttpClient(handler);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(_userAgent ?? "If you use BruTile please specify a user-agent specific to your app");
             var response = await client.GetAsync(url).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
@@ -266,11 +269,7 @@ public class Client
                 throw new Exception($"Unexpected response code: {response.StatusCode}");
             }
 
-#if NETSTANDARD2_0
-            using var readAsStreamAsync = await response.Content.ReadAsStreamAsync();
-#else
-            await using var readAsStreamAsync = await response.Content.ReadAsStreamAsync();
-#endif
+            await using var readAsStreamAsync = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             result = readAsStreamAsync.ToBytes();
             _persistentCache?.Add(url, result);
         }
@@ -296,11 +295,9 @@ public class Client
 
             using (var task = await _getStreamAsync(url))
             {
-                using (var stReader = new StreamReader(task))
-                {
-                    using var r = new XmlTextReader(url, stReader) { XmlResolver = null };
-                    doc.Load(r);
-                }
+                using var stReader = new StreamReader(task);
+                using var r = new XmlTextReader(url, stReader) { XmlResolver = null };
+                doc.Load(r);
             }
 
             _nsmgr = new XmlNamespaceManager(doc.NameTable);
@@ -413,9 +410,9 @@ public class Client
     /// <param name="nsmgr">NameSpace Manager</param>
     private void ParseCapability(XmlNode xnCapability, XmlNamespaceManager nsmgr)
     {
-        var xnRequest = xnCapability.SelectSingleNode("sm:Request", nsmgr);
-        if (xnRequest == null)
-            throw new Exception("Request parameter not specified in Service Description");
+        var xnRequest = xnCapability.SelectSingleNode("sm:Request", nsmgr)
+            ?? throw new Exception("Request parameter not specified in Service Description");
+
         ParseRequest(xnRequest);
 
         // Workaround for some WMS servers that have returning more than one root layer
@@ -436,9 +433,8 @@ public class Client
         }
         else
         {
-            var xnLayer = xnCapability.SelectSingleNode("sm:Layer", nsmgr);
-            if (xnLayer == null)
-                throw new Exception("No layer tag found in Service Description");
+            var xnLayer = xnCapability.SelectSingleNode("sm:Layer", nsmgr)
+                ?? throw new Exception("No layer tag found in Service Description");
             _layer = ParseLayer(xnLayer);
         }
 

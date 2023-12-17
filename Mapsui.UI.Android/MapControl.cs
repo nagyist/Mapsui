@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using Android.Content;
 using Android.Graphics;
 using Android.OS;
@@ -12,8 +8,6 @@ using Mapsui.UI.Android.Extensions;
 using Mapsui.Utilities;
 using SkiaSharp.Views.Android;
 using Math = System.Math;
-
-#nullable enable
 
 namespace Mapsui.UI.Android;
 
@@ -26,8 +20,11 @@ public enum SkiaRenderMode
 internal class MapControlGestureListener : GestureDetector.SimpleOnGestureListener
 {
     public EventHandler<GestureDetector.FlingEventArgs>? Fling;
-
-    public override bool OnFling(MotionEvent? e1, MotionEvent? e2, float velocityX, float velocityY)
+#if NET7_0
+    public override bool OnFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY)
+#else
+    public override bool OnFling(MotionEvent? e1, MotionEvent e2, float velocityX, float velocityY)
+#endif
     {
         if (Fling != null)
         {
@@ -179,10 +176,15 @@ public partial class MapControl : ViewGroup, IMapControl
 
     public void MapView_Touch(object? sender, TouchEventArgs args)
     {
-        if (_gestureDetector?.OnTouchEvent(args.Event) ?? false)
+        if (args.Event != null && (_gestureDetector?.OnTouchEvent(args.Event) ?? false))
             return;
 
         var touchPoints = GetScreenPositions(args.Event, this);
+
+        if (touchPoints.Count > 0 && HandleTouch(args, touchPoints.First()))
+        {
+            return;
+        }
 
         switch (args.Event?.Action)
         {
@@ -270,6 +272,18 @@ public partial class MapControl : ViewGroup, IMapControl
                 }
                 break;
         }
+    }
+
+    private bool HandleTouch(TouchEventArgs e, MPoint location)
+    {
+        var action = e.Event?.Action;
+        return action switch
+        {
+            MotionEventActions.Down when HandleTouching(location, true, Math.Max(1, 0), false) => true,
+            MotionEventActions.Up when HandleTouched(location, true, 0, false) => true,
+            MotionEventActions.Move when HandleMoving(location, true, Math.Max(1, 0), false) => true,
+            _ => false
+        };
     }
 
     /// <summary>

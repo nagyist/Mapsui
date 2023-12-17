@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <TargetFrameworks Condition="'$(SolutionName)' != 'Mapsui.Mac.Legacy'">$(TargetFrameworks);net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <Authors>Mapsui Contributers</Authors>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
@@ -156,6 +155,14 @@
     <ProjectReference Include="..\..\Mapsui.Tiling\Mapsui.Tiling.csproj" />
     <ProjectReference Include="..\..\Mapsui\Mapsui.csproj" />
     <ProjectReference Include="..\Mapsui.Samples.CustomWidget\Mapsui.Samples.CustomWidget.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="GeoData\Cache\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Tests\Mapsui.Rendering.Skia.Tests\Resources\Cache\WmsSample.sqlite" Link="GeoData\Cache\WmsSample.sqlite" />
   </ItemGroup>
 
   <PropertyGroup>

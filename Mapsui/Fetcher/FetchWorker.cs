@@ -54,10 +54,10 @@ public class FetchWorker : IDisposable // Todo: Make internal
     {
         try
         {
-            while (cancellationTokenSource is { Token: { IsCancellationRequested: false } })
+            while (cancellationTokenSource is { Token.IsCancellationRequested: false })
             {
                 if (_fetchDispatcher.TryTake(out var method))
-                    await method();
+                    await method().ConfigureAwait(false);
                 else
                     cancellationTokenSource.Cancel();
             }
@@ -67,6 +67,10 @@ public class FetchWorker : IDisposable // Todo: Make internal
             // Not logging on ObjectDisposedException. This happens when 
             // cancellationTokenSource.Cancel() is called.
             // Logger.Log(LogLevel.Error, e.Message, e);
+        }
+        catch (Exception e)
+        {
+            Logger.Log(LogLevel.Error, e.Message, e);
         }
     }
 }

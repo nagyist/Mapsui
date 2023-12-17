@@ -24,50 +24,57 @@ using Mapsui.Utilities;
 
 namespace Mapsui.Rendering.Benchmarks;
 
-[SimpleJob(RunStrategy.Throughput, targetCount: 1, warmupCount: 0, invocationCount: 333, launchCount: 1)]
+[SimpleJob(RunStrategy.Throughput, iterationCount: 1, warmupCount: 0, invocationCount: 333, launchCount: 1)]
 [MemoryDiagnoser]
 [MinColumn, MaxColumn, MeanColumn, MedianColumn]
-public sealed class RenderToCpuPerformance : IDisposable
+public class RenderToCpuPerformance : IDisposable
 {
-    private static readonly RegressionMapControl tilingSkpMap;
-    private static readonly RegressionMapControl tilingPngMap;
-    private static readonly RegressionMapControl tilingWebpMap;
-    private static readonly RegressionMapControl map;
-    private static readonly RegressionMapControl rasterizingPngMap;
-    private static readonly RegressionMapControl rasterizingSkpMap;
-    private static readonly RegressionMapControl rasterizingTilingSkpMap;
-    private static readonly MapRenderer mapRenderer;
-    private static readonly MapRenderer mapRendererWithoutCache;
-    private readonly SKCanvas skCanvas;
-    private readonly SKImageInfo imageInfo;
-    private readonly SKSurface surface;
+    private static readonly RegressionMapControl _tilingSkpMap;
+    private static readonly RegressionMapControl _tilingPngMap;
+    private static readonly RegressionMapControl _tilingWebpMap;
+    private static readonly RegressionMapControl _map;
+    private static readonly RegressionMapControl _rasterizingPngMap;
+    private static readonly RegressionMapControl _rasterizingSkpMap;
+    private static readonly RegressionMapControl _rasterizingTilingSkpMap;
+    private static readonly MapRenderer _mapRenderer;
+    private static readonly MapRenderer _mapRendererWithoutCache;
+    private readonly SKCanvas _skCanvas;
+    private readonly SKImageInfo _imageInfo;
+    private readonly SKSurface _surface;
 
     static RenderToCpuPerformance()
     {
-        mapRenderer = new MapRenderer();
-        mapRendererWithoutCache = new MapRenderer();
-        mapRendererWithoutCache.RenderCache.VectorCache = new NonCachingVectorCache(mapRendererWithoutCache.RenderCache.SymbolCache);
-        tilingSkpMap = CreateMapControl(RenderFormat.Skp);
-        tilingPngMap = CreateMapControl(RenderFormat.Png);
-        tilingWebpMap = CreateMapControl(RenderFormat.WebP);
-        rasterizingPngMap = CreateMapControl(RenderFormat.Png, false, true);
-        rasterizingSkpMap = CreateMapControl(RenderFormat.Skp, false, true);
-        rasterizingTilingSkpMap = CreateMapControl(RenderFormat.Skp, true, true);
-        map = CreateMapControl();
+        _mapRenderer = new MapRenderer();
+        _mapRendererWithoutCache = new MapRenderer();
+        _mapRendererWithoutCache.RenderCache.VectorCache = new NonCachingVectorCache(_mapRendererWithoutCache.RenderCache.SymbolCache);
+        _tilingSkpMap = CreateMapControlAsync(RenderFormat.Skp).Result;
+        _tilingPngMap = CreateMapControlAsync(RenderFormat.Png).Result;
+        _tilingWebpMap = CreateMapControlAsync(RenderFormat.WebP).Result;
+        _rasterizingPngMap = CreateMapControlAsync(RenderFormat.Png, false, true).Result;
+        _rasterizingSkpMap = CreateMapControlAsync(RenderFormat.Skp, false, true).Result;
+        _rasterizingTilingSkpMap = CreateMapControlAsync(RenderFormat.Skp, true, true).Result;
+        _map = CreateMapControlAsync().Result;
+        _map.WaitForLoadingAsync().Wait();
+        _tilingSkpMap.WaitForLoadingAsync().Wait();
+        _tilingPngMap.WaitForLoadingAsync().Wait();
+        _tilingWebpMap.WaitForLoadingAsync().Wait();
+        _rasterizingPngMap.WaitForLoadingAsync().Wait();
+        _rasterizingSkpMap.WaitForLoadingAsync().Wait();
+        _rasterizingTilingSkpMap.WaitForLoadingAsync().Wait();
     }
 
     public RenderToCpuPerformance()
     {
-        imageInfo = new SKImageInfo((int)Math.Round(800 * 1.0), (int)Math.Round(600 * 1.0),
+        _imageInfo = new SKImageInfo((int)Math.Round(800 * 1.0), (int)Math.Round(600 * 1.0),
             SKImageInfo.PlatformColorType, SKAlphaType.Unpremul);
 
-        surface = SKSurface.Create(imageInfo);
-        skCanvas = surface.Canvas;
+        _surface = SKSurface.Create(_imageInfo);
+        _skCanvas = _surface.Canvas;
     }
 
-    public static RegressionMapControl CreateMapControl(RenderFormat? renderFormat = null, bool tiling = true, bool rasterizing = false)
+    public static async Task<RegressionMapControl> CreateMapControlAsync(RenderFormat? renderFormat = null, bool tiling = true, bool rasterizing = false)
     {
-        var mapControl = new RegressionMapControl();
+        var mapControl = new RegressionMapControl(_mapRenderer);
         mapControl.SetSize(800, 600);
 
         mapControl.Map = CreateMap(renderFormat, tiling, rasterizing);
@@ -78,7 +85,7 @@ public sealed class RenderToCpuPerformance : IDisposable
         // fetch data first time
         var fetchInfo = new FetchInfo(mapControl.Map.Navigator.Viewport.ToSection(), mapControl.Map.CRS);
         mapControl.Map.RefreshData(fetchInfo);
-        mapControl.Map.Layers.WaitForLoadingAsync().Wait();
+        await mapControl.Map.Layers.WaitForLoadingAsync();
 
         return mapControl;
     }
@@ -109,7 +116,7 @@ public sealed class RenderToCpuPerformance : IDisposable
             {
                 var sqliteCache = new SqlitePersistentCache("Performance" + renderFormat);
                 sqliteCache.Clear();
-                layer = new RasterizingTileLayer(layer, persistentCache: sqliteCache, renderFormat: renderFormat.Value);
+                layer = new RasterizingTileLayer(layer, _mapRenderer, persistentCache: sqliteCache, renderFormat: renderFormat.Value);
             }
 
             if (rasterizing)
@@ -121,7 +128,7 @@ public sealed class RenderToCpuPerformance : IDisposable
         map.Layers.Add(layer);
 
         var extent = map.Layers[0].Extent!;
-        map.Home = n => n.ZoomToBox(extent);
+        map.Navigator.ZoomToBox(extent);
 
         return map;
     }
@@ -153,68 +160,60 @@ public sealed class RenderToCpuPerformance : IDisposable
         var max = new VectorStyle { Outline = new Pen { Color = Color.Black } };
 
         // Create theme using a density from 0 (min) to 400 (max)
-        return new GradientTheme("PopDens", 0, 400, min, max) { FillColorBlend = ColorBlend.Rainbow5 };
+        return new GradientTheme("POPDENS", 0, 400, min, max) { FillColorBlend = ColorBlend.Rainbow5 };
     }
 
     [Benchmark]
-    public async Task RenderDefaultWithoutCacheAsync()
+    public void RenderDefaultWithoutCache()
     {
-        await map.WaitForLoadingAsync();
-        mapRendererWithoutCache.Render(skCanvas, map.Map.Navigator.Viewport, map.Map.Layers, map.Map.Widgets, Color.White);
+        _mapRendererWithoutCache.Render(_skCanvas, _map.Map.Navigator.Viewport, _map.Map.Layers, _map.Map.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderDefaultAsync()
+    public void RenderDefault()
     {
-        await map.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, map.Map.Navigator.Viewport, map.Map.Layers, map.Map.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _map.Map.Navigator.Viewport, _map.Map.Layers, _map.Map.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderRasterizingPngAsync()
+    public void RenderRasterizingPng()
     {
-        await rasterizingPngMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, rasterizingPngMap.Map.Navigator.Viewport, rasterizingPngMap.Map!.Layers, rasterizingPngMap.Map!.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _rasterizingPngMap.Map.Navigator.Viewport, _rasterizingPngMap.Map!.Layers, _rasterizingPngMap.Map!.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderRasterizingSkpAsync()
+    public void RenderRasterizingSkp()
     {
-        await rasterizingSkpMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, rasterizingSkpMap.Map.Navigator.Viewport, rasterizingSkpMap.Map!.Layers, rasterizingSkpMap.Map!.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _rasterizingSkpMap.Map.Navigator.Viewport, _rasterizingSkpMap.Map!.Layers, _rasterizingSkpMap.Map!.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderRasterizingTilingSkpAsync()
+    public void RenderRasterizingTilingSkp()
     {
-        await rasterizingTilingSkpMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, rasterizingTilingSkpMap.Map.Navigator.Viewport, rasterizingTilingSkpMap.Map!.Layers, rasterizingTilingSkpMap.Map!.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _rasterizingTilingSkpMap.Map.Navigator.Viewport, _rasterizingTilingSkpMap.Map!.Layers, _rasterizingTilingSkpMap.Map!.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderTilingPngAsync()
+    public void RenderTilingPng()
     {
-        await tilingPngMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, tilingPngMap.Map.Navigator.Viewport, tilingPngMap.Map!.Layers, tilingPngMap.Map!.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _tilingPngMap.Map.Navigator.Viewport, _tilingPngMap.Map!.Layers, _tilingPngMap.Map!.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderTilingWebPAsync()
+    public void RenderTilingWebP()
     {
-        await tilingWebpMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, tilingWebpMap.Map.Navigator.Viewport, tilingWebpMap.Map.Layers, tilingWebpMap.Map.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _tilingWebpMap.Map.Navigator.Viewport, _tilingWebpMap.Map.Layers, _tilingWebpMap.Map.Widgets, Color.White);
     }
 
     [Benchmark]
-    public async Task RenderTilingSkpAsync()
+    public void RenderTilingSkp()
     {
-        await tilingSkpMap.WaitForLoadingAsync();
-        mapRenderer.Render(skCanvas, tilingSkpMap.Map.Navigator.Viewport, tilingSkpMap.Map.Layers, tilingSkpMap.Map.Widgets, Color.White);
+        _mapRenderer.Render(_skCanvas, _tilingSkpMap.Map.Navigator.Viewport, _tilingSkpMap.Map.Layers, _tilingSkpMap.Map.Widgets, Color.White);
     }
 
     public void Dispose()
     {
-        skCanvas.Dispose();
-        surface.Dispose();
+        _skCanvas.Dispose();
+        _surface.Dispose();
     }
 }

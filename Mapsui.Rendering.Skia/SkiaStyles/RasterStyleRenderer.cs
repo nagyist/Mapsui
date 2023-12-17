@@ -6,6 +6,8 @@ using Mapsui.Styles;
 using SkiaSharp;
 using System;
 
+#pragma warning disable IDISP001 // Dispose created
+
 namespace Mapsui.Rendering.Skia;
 
 public class RasterStyleRenderer : ISkiaStyleRenderer
@@ -22,28 +24,13 @@ public class RasterStyleRenderer : ISkiaStyleRenderer
             if (raster == null)
                 return false;
 
-            if (!(style is RasterStyle rasterStyle))
+            if (style is not RasterStyle)
                 return false;
 
-            rasterStyle.UpdateCache(currentIteration);
+            renderCache.TileCache.UpdateCache(currentIteration);
 
-            rasterStyle.TileCache.TryGetValue(raster, out var cachedBitmapInfo);
-            BitmapInfo? bitmapInfo = cachedBitmapInfo as BitmapInfo;
-            if (BitmapHelper.InvalidBitmapInfo(bitmapInfo))
-            {
-                bitmapInfo = BitmapHelper.LoadBitmap(raster.Data);
-                rasterStyle.TileCache[raster] = bitmapInfo;
-            }
-
-            if (BitmapHelper.InvalidBitmapInfo(bitmapInfo))
-            {
-                // remove invalid image from cache
-                rasterStyle.TileCache.Remove(raster);
+            if (renderCache.TileCache.GetOrCreate(raster, currentIteration) is not BitmapInfo bitmapInfo)
                 return false;
-            }
-
-            bitmapInfo.IterationUsed = currentIteration;
-            rasterStyle.TileCache[raster] = bitmapInfo;
 
             var extent = feature.Extent;
 
@@ -65,10 +52,10 @@ public class RasterStyleRenderer : ISkiaStyleRenderer
                 switch (bitmapInfo.Type)
                 {
                     case BitmapType.Bitmap:
-                        BitmapRenderer.Draw(canvas, bitmapInfo.Bitmap!, RoundToPixel(destination), opacity);
+                        BitmapRenderer.Draw(canvas, bitmapInfo.Bitmap!, destination, opacity);
                         break;
                     case BitmapType.Picture:
-                        PictureRenderer.Draw(canvas, bitmapInfo.Picture!, RoundToPixel(destination), opacity);
+                        PictureRenderer.Draw(canvas, bitmapInfo.Picture!, destination, opacity);
                         break;
                 }
 

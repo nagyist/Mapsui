@@ -8,29 +8,13 @@ using Mapsui.Styles;
 using Mapsui.UI.Objects;
 using Mapsui.Utilities;
 using SkiaSharp;
-#if __MAUI__
-using Microsoft.Maui;
 using Microsoft.Maui.Graphics;
-using Microsoft.Maui.Controls;
 using SkiaSharp.Views.Maui;
-
 using Color = Microsoft.Maui.Graphics.Color;
-using KnownColor = Mapsui.UI.Maui.KnownColor;
-#else
-using SkiaSharp.Views.Forms;
-using Xamarin.Forms;
 
-using Color = Xamarin.Forms.Color;
-using KnownColor = Xamarin.Forms.Color;
-#endif
-
-#if __MAUI__
 namespace Mapsui.UI.Maui;
-#else
-namespace Mapsui.UI.Forms;
-#endif
 
-public class Pin : IFeatureProvider, IDisposable, INotifyPropertyChanged
+public class Pin : IFeatureProvider, INotifyPropertyChanged
 {
     // Cache for used bitmaps
     private static readonly Dictionary<string, int> _bitmapIds = new Dictionary<string, int>();
@@ -73,7 +57,6 @@ public class Pin : IFeatureProvider, IDisposable, INotifyPropertyChanged
                     _mapView?.RemoveCallout(_callout);
                 }
 
-                Feature?.Dispose();
                 Feature = null;
                 _mapView = value;
 
@@ -619,19 +602,13 @@ public class Pin : IFeatureProvider, IDisposable, INotifyPropertyChanged
         }
     }
 
-    public virtual void Dispose()
-    {
-        _callout?.Dispose();
-        Feature?.Dispose();
-    }
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-         switch (propertyName)
+        switch (propertyName)
         {
             case nameof(Position):
                 if (Feature != null)

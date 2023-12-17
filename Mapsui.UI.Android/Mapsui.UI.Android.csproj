@@ -4,11 +4,11 @@
     <AndroidResgenFile>Resources\Resource.Designer.cs</AndroidResgenFile>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
-    <TargetFramework>net6.0-android31.0</TargetFramework>
+    <TargetFrameworks>net7.0-android33.0;net8.0-android34.0</TargetFrameworks>    
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Mapsui.Android</PackageId>
-    <Description>Xamarin Android map components based on the Mapsui library</Description>
+    <Description>.Net Android map components based on the Mapsui library</Description>
     <PackageTags>$(PackageTags) android</PackageTags>
 		<IsPackable>true</IsPackable>
   </PropertyGroup>

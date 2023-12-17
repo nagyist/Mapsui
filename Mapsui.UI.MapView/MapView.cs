@@ -15,7 +15,6 @@ using System.Resources;
 using System.Runtime.CompilerServices;
 using Mapsui.Logging;
 using Mapsui.Utilities;
-#if __MAUI__
 using Mapsui.UI.Maui.Utils;
 using Mapsui.UI.Maui.Extensions;
 using Microsoft.Maui;
@@ -25,28 +24,18 @@ using Microsoft.Maui.Layouts;
 using SkiaSharp.Views;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
-
 using Rectangle = Microsoft.Maui.Graphics.Rect;
-#else
-using Mapsui.UI.Forms.Utils;
-using Mapsui.UI.Forms.Extensions;
-using Xamarin.Forms;
-#endif
 
-#if __MAUI__
 namespace Mapsui.UI.Maui;
-#else
-namespace Mapsui.UI.Forms;
-#endif
 
 /// <summary>
 /// Class, that uses the API of the original Xamarin.Forms MapView
 /// </summary>
 public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
 {
-    private const string CalloutLayerName = "Callouts";
-    private const string PinLayerName = "Pins";
-    private const string DrawableLayerName = "Drawables";
+    private const string _calloutLayerName = "Callouts";
+    private const string _pinLayerName = "Pins";
+    private const string _drawableLayerName = "Drawables";
     private readonly ObservableMemoryLayer<Callout> _mapCalloutLayer;
     private readonly ObservableMemoryLayer<Pin> _mapPinLayer;
     private readonly ObservableMemoryLayer<Drawable> _mapDrawableLayer;
@@ -60,12 +49,9 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
     private readonly SKPicture _pictZoomOut;
     private readonly SKPicture _pictNorthing;
     private readonly ObservableRangeCollection<Pin> _pins = new ObservableRangeCollection<Pin>();
-    private readonly ObservableRangeCollection<Drawable> _drawable = new ObservableRangeCollection<Drawable>();
+    private readonly ObservableRangeCollection<Drawable> _drawables = new ObservableRangeCollection<Drawable>();
     private readonly ObservableRangeCollection<Callout> _callouts = new ObservableRangeCollection<Callout>();
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="T:Mapsui.UI.Forms.MapView"/> class.
-    /// </summary>
     public MapView()
     {
         MyLocationFollow = false;
@@ -73,10 +59,10 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
         IsClippedToBounds = true;
         UseDoubleTap = false;
 
-        MyLocationLayer = new MyLocationLayer(this) { Enabled = true };
-        _mapCalloutLayer = new ObservableMemoryLayer<Callout>(f => f.Feature) { Name = CalloutLayerName, IsMapInfoLayer = true };
-        _mapPinLayer = new ObservableMemoryLayer<Pin>(f => f.Feature) { Name = PinLayerName, IsMapInfoLayer = true };
-        _mapDrawableLayer = new ObservableMemoryLayer<Drawable>(f => f.Feature) { Name = DrawableLayerName, IsMapInfoLayer = true };
+        MyLocationLayer = new Objects.MyLocationLayer(this) { Enabled = true };
+        _mapCalloutLayer = new ObservableMemoryLayer<Callout>(f => f.Feature) { Name = _calloutLayerName, IsMapInfoLayer = true };
+        _mapPinLayer = new ObservableMemoryLayer<Pin>(f => f.Feature) { Name = _pinLayerName, IsMapInfoLayer = true };
+        _mapDrawableLayer = new ObservableMemoryLayer<Drawable>(f => f.Feature) { Name = _drawableLayerName, IsMapInfoLayer = true };
 
         // Get defaults from MapControl
         RotationLock = Map.Navigator.RotationLock;
@@ -113,7 +99,7 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
         CreateButtons();
 
         _pins.CollectionChanged += HandlerPinsOnCollectionChanged;
-        _drawable.CollectionChanged += HandlerDrawablesOnCollectionChanged;
+        _drawables.CollectionChanged += HandlerDrawablesOnCollectionChanged;
 
         _mapCalloutLayer.ObservableCollection = _callouts;
         _mapCalloutLayer.Style = null;  // We don't want a global style for this layer
@@ -121,7 +107,7 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
         _mapPinLayer.ObservableCollection = _pins;
         _mapPinLayer.Style = null;  // We don't want a global style for this layer
 
-        _mapDrawableLayer.ObservableCollection = _drawable;
+        _mapDrawableLayer.ObservableCollection = _drawables;
         _mapDrawableLayer.Style = null;  // We don't want a global style for this layer
     }
 
@@ -176,7 +162,7 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
     /// <summary>
     /// MyLocation layer
     /// </summary>
-    public MyLocationLayer MyLocationLayer { get; }
+    public Objects.MyLocationLayer MyLocationLayer { get; }
 
     /// <summary>
     /// Should my location be visible on map
@@ -238,6 +224,11 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
     }
 
     /// <summary>
+    /// Get callouts on map (those that are currently visible).
+    /// </summary>
+    public IReadOnlyList<Callout> GetCallouts() { return _callouts.ToList(); }
+
+    /// <summary>
     /// Single or multiple callouts possible
     /// </summary>
     public bool UniqueCallout
@@ -249,7 +240,7 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
     /// <summary>
     /// List of drawables like polyline and polygon
     /// </summary>
-    public IList<Drawable> Drawables => _drawable;
+    public IList<Drawable> Drawables => _drawables;
 
     /// <summary>
     /// Enable rotation with pinch gesture
@@ -476,7 +467,7 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
     /// </summary>
     /// <param name="sender">Viewport of this event</param>
     /// <param name="e">Event arguments containing what changed</param>
-    private void HandlerViewportChanged(object? sender, PropertyChangedEventArgs e)
+    private void HandlerViewportChanged(object? sender, ViewportChangedEventArgs e)
     {
         if (e.PropertyName?.Equals(nameof(Navigator.Viewport.Rotation)) ?? false)
         {
@@ -637,30 +628,32 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
         // Check for clicked drawables
         else if (e.MapInfo?.Layer == _mapDrawableLayer)
         {
-            Drawable? clickedDrawable = null;
-            var drawables = _drawable.ToList();
-
-            foreach (var drawable in drawables)
-            {
-                if (drawable.IsClickable && (drawable.Feature?.Equals(e.MapInfo.Feature) ?? false))
-                {
-                    clickedDrawable = drawable;
-                    break;
-                }
-            }
+            var drawables = _drawables.ToList();
 
             if (e.MapInfo!.ScreenPosition == null)
                 return;
 
-            var drawableArgs = new DrawableClickedEventArgs(
-                Map.Navigator.Viewport.ScreenToWorld(e.MapInfo!.ScreenPosition).ToNative(),
-                new Point(e.MapInfo.ScreenPosition.X, e.MapInfo.ScreenPosition.Y), e.NumTaps);
+            foreach (var rec in e.MapInfo.MapInfoRecords)
+            {
+                foreach (var drawable in drawables)
+                {
+                    if (!drawable.IsClickable)
+                        continue;
+                    if (drawable.Feature?.Equals(rec.Feature) ?? false)
+                    {
+                        var drawableArgs = new DrawableClickedEventArgs(
+                            Map.Navigator.Viewport.ScreenToWorld(e.MapInfo!.ScreenPosition).ToNative(),
+                            new Point(e.MapInfo.ScreenPosition.X, e.MapInfo.ScreenPosition.Y), e.NumTaps);
 
-            clickedDrawable?.HandleClicked(drawableArgs);
+                        drawable?.HandleClicked(drawableArgs);
 
-            e.Handled = drawableArgs.Handled;
+                        e.Handled = drawableArgs.Handled;
 
-            return;
+                        if (e.Handled)
+                            return;
+                    }
+                }
+            }
         }
         // Check for clicked mylocation
         else if (e.MapInfo?.Layer == MyLocationLayer)
@@ -693,33 +686,22 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
 
     private void HandlerTap(object? sender, TappedEventArgs e)
     {
-        // Close all closable Callouts
-        var pins = _pins.ToList();
-
         e.Handled = false;
 
         if (Map != null)
         {
-            // Check, if we hit a widget
-            // Is there a widget at this position
-            foreach (var widget in Map.Widgets)
-            {
-                if (widget.Enabled && (widget.Envelope?.Contains(e.ScreenPosition) ?? false))
-                {
-                    if (widget.HandleWidgetTouched(Map.Navigator, e.ScreenPosition))
-                    {
-                        e.Handled = true;
-                        return;
-                    }
-                }
-            }
-
-            // Check, if we hit a drawable
-            // Is there a drawable at this position
+            // Check if we hit a drawable/pin/callout etc
             var mapInfo = GetMapInfo(e.ScreenPosition);
 
-            if (mapInfo?.Feature == null)
+            var mapInfoEventArgs = new MapInfoEventArgs { MapInfo = mapInfo, Handled = e.Handled, NumTaps = e.NumOfTaps };
+
+            HandlerInfo(sender, mapInfoEventArgs);
+
+            e.Handled = mapInfoEventArgs.Handled;
+
+            if (!e.Handled)
             {
+                // if nothing else was hit, then we hit the map
                 var args = new MapClickedEventArgs(Map.Navigator.Viewport.ScreenToWorld(e.ScreenPosition).ToNative(), e.NumOfTaps);
                 MapClicked?.Invoke(this, args);
 
@@ -734,13 +716,6 @@ public class MapView : MapControl, INotifyPropertyChanged, IEnumerable<Pin>
 
                 return;
             }
-
-            // A feature is clicked
-            var mapInfoEventArgs = new MapInfoEventArgs { MapInfo = mapInfo, Handled = e.Handled, NumTaps = e.NumOfTaps };
-
-            HandlerInfo(sender, mapInfoEventArgs);
-
-            e.Handled = mapInfoEventArgs.Handled;
         }
     }
 

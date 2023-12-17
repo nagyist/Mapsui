@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using BruTile;
 using BruTile.Cache;
@@ -17,7 +18,7 @@ using Attribution = BruTile.Attribution;
 namespace Mapsui.Tiling.Provider;
 
 /// <summary> The rasterizing tile provider. Tiles the Layer for faster Rasterizing on Zoom and Move. </summary>
-public class RasterizingTileProvider : ITileSource
+public class RasterizingTileProvider : ITileSource, ILayerFeatureInfo
 {
     private readonly ConcurrentStack<IRenderer> _rasterizingLayers = new();
     private readonly IRenderer? _rasterizer;
@@ -28,6 +29,7 @@ public class RasterizingTileProvider : ITileSource
     private readonly IProvider? _dataSource;
     private readonly RenderFormat _renderFormat;
     private readonly IDictionary<TileIndex, double> _searchSizeCache = new ConcurrentDictionary<TileIndex, double>();
+    private IRenderCache? _renderCache;
 
     public RasterizingTileProvider(
         ILayer layer,
@@ -40,6 +42,7 @@ public class RasterizingTileProvider : ITileSource
         _renderFormat = renderFormat;
         _layer = layer;
         _rasterizer = rasterizer;
+        _renderCache = rasterizer?.RenderCache;
         _pixelDensity = pixelDensity;
         PersistentCache = persistentCache ?? new NullCache();
 
@@ -86,16 +89,17 @@ public class RasterizingTileProvider : ITileSource
         var extent = section.Extent;
         if (featureSearchGrowth > 0)
         {
-            var firstRow = Schema.GetMatrixFirstRow(indexLevel);
-            var lastRow = firstRow + Schema.GetMatrixHeight(indexLevel) -1;
-            var firstCol = Schema.GetMatrixFirstCol(indexLevel);
-            var lastCol = firstCol + Schema.GetMatrixWidth(indexLevel) -1;
+            // do not expand beyond the bounds of the Schema fixes not loading data in Because of invalid bounds
+            var minX = extent.MinX - featureSearchGrowth;
+            var minY = extent.MinY - featureSearchGrowth;
+            var maxX = extent.MaxX + featureSearchGrowth;
+            var maxY = extent.MaxY + featureSearchGrowth;
 
-            // do not expand beyound the bounds of the Schema fixes not loading data in Because of invalid bounds
-            var minX = tileInfo.Index.Col == firstCol ? extent.MinX : extent.MinX - featureSearchGrowth;
-            var minY = tileInfo.Index.Row == firstRow ? extent.MinY : extent.MinY - featureSearchGrowth;
-            var maxX = tileInfo.Index.Col == lastCol ? extent.MaxX : extent.MaxX + featureSearchGrowth;
-            var maxY = tileInfo.Index.Row == lastRow ? extent.MaxY : extent.MaxY + featureSearchGrowth;
+            var schemaExtent = Schema.Extent;
+            if (minX < schemaExtent.MinX) minX = schemaExtent.MinX;
+            if (minY < schemaExtent.MinY) minY = schemaExtent.MinY;
+            if (maxX > schemaExtent.MaxX) maxX = schemaExtent.MaxX;
+            if (maxY > schemaExtent.MaxY) maxY = schemaExtent.MaxY;
 
             extent = new MRect(minX, minY, maxX, maxY);
         }
@@ -201,7 +205,23 @@ public class RasterizingTileProvider : ITileSource
 
     private IRenderer GetRenderer()
     {
-        if (!_rasterizingLayers.TryPop(out var rasterizer)) rasterizer = _rasterizer ?? DefaultRendererFactory.Create();
+        if (!_rasterizingLayers.TryPop(out var rasterizer))
+        {
+            rasterizer = _rasterizer;
+            if (rasterizer == null)
+            {
+                if (_renderCache != null)
+                {
+                    rasterizer = DefaultRendererFactory.CreateWithCache(_renderCache);
+                }
+                else
+                {
+                    rasterizer = DefaultRendererFactory.Create();
+                    _renderCache = rasterizer.RenderCache; // get the render cache from the first renderer
+                }
+            }
+        }
+
         return rasterizer;
     }
 
@@ -218,5 +238,45 @@ public class RasterizingTileProvider : ITileSource
             0,
             section.ScreenWidth,
             section.ScreenHeight);
+    }
+
+    public async Task<IDictionary<string, IEnumerable<IFeature>>> GetFeatureInfoAsync(Viewport viewport, double screenX, double screenY)
+    {
+        var result = new Dictionary<string, IEnumerable<IFeature>>();
+        var renderer = GetRenderer();
+
+        var tileInfos = Schema.GetTileInfos(viewport.ToExtent().ToExtent(), viewport.Resolution);
+        var (worldX, worldY) = viewport.ScreenToWorldXY(screenX, screenY);
+        var tileInfo = tileInfos.FirstOrDefault(f =>
+            f.Extent.MinX <= worldX && f.Extent.MaxX >= worldX && f.Extent.MinY <= worldY && f.Extent.MaxY >= worldY);
+
+        if (tileInfo == null)
+        {
+            return result;
+        }
+
+        var layer = await CreateRenderLayerAsync(tileInfo, renderer);
+        var layerRenderLayer = layer.RenderLayer;
+        layerRenderLayer.IsMapInfoLayer = true;
+        var layers = new List<ILayer>
+        {
+            layerRenderLayer
+        };
+
+        var info = renderer.GetMapInfo(screenX, screenY, viewport, layers);
+        if (info != null)
+        {
+            var mapInfo = await info.GetMapInfoAsync();
+            var infos = mapInfo?.MapInfoRecords;
+            if (infos != null)
+            {
+                foreach (var group in infos.GroupBy(f => f.Layer.Name))
+                {
+                    result[group.Key] = group.Select(f => f.Feature).ToArray();
+                }
+            }
+        }
+
+        return result;
     }
 }

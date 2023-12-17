@@ -1,9 +1,11 @@
 ﻿using Mapsui.Cache;
+using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Logging;
 using Mapsui.Providers.Wfs;
 using Mapsui.Styles;
 using Mapsui.Tiling;
+using Mapsui.Widgets;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
@@ -14,7 +16,6 @@ public class WfsSample : ISample
 {
     public string Name => " 7 WFS";
     public string Category => "Data Formats";
-    public static IUrlPersistentCache? DefaultCache { get; set; }
 
     private const string wfsUri = "https://geoservices1.civis.bz.it/geoserver/p_bz-AdministrativeUnits/ows";
     private const string crs = "EPSG:3857";  // originally: "EPSG:25832"
@@ -32,7 +33,9 @@ public class WfsSample : ISample
             map.Layers.Add(CreateWfsLayer(provider));
             map.Layers.Add(CreateLabelLayer(provider));
 
-            map.Home = n => n.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), n.Resolutions[9]);
+            map.Widgets.Add(new MapInfoWidget(map));
+
+            map.Navigator.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), map.Navigator.Resolutions[9]);
 
             return map;
 
@@ -60,8 +63,7 @@ public class WfsSample : ISample
             getCapabilitiesUri,
             nsPrefix,
             layerName,
-            WFSProvider.WFSVersionEnum.WFS_1_1_0,
-            persistentCache: DefaultCache);
+            WFSProvider.WFSVersionEnum.WFS_1_1_0);
 
         provider.QuickGeometries = false;
         provider.GetFeatureGetRequest = true;

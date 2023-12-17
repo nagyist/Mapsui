@@ -12,7 +12,7 @@ jobs:
   build:
 
     env:
-      SOLUTION: 'Mapsui.NoMSBuild.slnf'
+      SOLUTION: 'Mapsui.sln'
 
     runs-on: windows-latest
 
@@ -29,12 +29,9 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
          dotnet-version: |
-           7.0.x
-         include-prerelease: false
-      
-    - name: Setup msbuild
-      uses: microsoft/setup-msbuild@v1.1
-
+           8.0.x
+         include-prerelease: true
+       
       # The version tag needs to be set before the release. If not if will fail on nuget publish.
     - name: Set VERSION_OF_RELEASE to last tag
       run: |
@@ -42,21 +39,11 @@ jobs:
         echo $VERSION_OF_RELEASE
 
     - name: install workloads
-      run: dotnet workload install maui macos android ios maccatalyst wasm-tools wasm-tools-net6
+      run: Scripts/InstallDependencies.cmd
 
     - name: Test
       run: dotnet test ${{ env.SOLUTION }} --configuration Release --verbosity normal -p:Version=${{ env.VERSION_OF_RELEASE }}
 
-    - name: Pack Uno UWP
-      run: |
-        msbuild Mapsui.UI.Uno/Mapsui.UI.Uno.csproj /t:restore /p:Configuration=Release 
-        msbuild Mapsui.UI.Uno/Mapsui.UI.Uno.csproj /t:pack /p:Configuration=Release /p:Version=${{ env.VERSION_OF_RELEASE }} /p:PackageOutputPath="${{ github.workspace }}/nugets"
-
-    - name: Pack Xamarin Forms
-      run: |
-        msbuild Mapsui.UI.Forms/Mapsui.UI.Forms.csproj /t:restore /p:Configuration=Release 
-        msbuild Mapsui.UI.Forms/Mapsui.UI.Forms.csproj /t:pack /p:Configuration=Release /p:Version=${{ env.VERSION_OF_RELEASE }} /p:PackageOutputPath="${{ github.workspace }}/nugets"
-     
     - name: Pack
       # The dlls and nupkgs will be built 'inputs.release_version' as version, overriding the version number in the Directory.Build.props.
       run: dotnet pack ${{ env.SOLUTION }} --configuration Release /p:Version=${{ env.VERSION_OF_RELEASE }} -o nugets

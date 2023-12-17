@@ -1,20 +1,26 @@
 using System;
-using System.Diagnostics;
 using Mapsui.Layers;
 using Mapsui.Nts.Extensions;
 using NetTopologySuite.Geometries;
 
 namespace Mapsui.Nts;
 
-public class GeometryFeature : BaseFeature, IFeature, IDisposable
+public class GeometryFeature : BaseFeature, IFeature
 {
-    private bool _disposed;
-
     public GeometryFeature()
     {
     }
 
+    public GeometryFeature(long id) : base(id)
+    {
+    }
+
     public GeometryFeature(GeometryFeature geometryFeature) : base(geometryFeature)
+    {
+        Geometry = geometryFeature.Geometry?.Copy();
+    }
+
+    public GeometryFeature(GeometryFeature geometryFeature, long id) : base(geometryFeature, id)
     {
         Geometry = geometryFeature.Geometry?.Copy();
     }
@@ -26,22 +32,7 @@ public class GeometryFeature : BaseFeature, IFeature, IDisposable
 
     public Geometry? Geometry { get; set; }
 
-    public MRect? Extent => Geometry?.EnvelopeInternal.ToMRect(); // Todo: Make not-nullable
-
-    public override void Dispose()
-    {
-        if (_disposed) return;
-        base.Dispose();
-
-        foreach (var keyValuePair in RenderedGeometry)
-        {
-            var disposable = keyValuePair.Value as IDisposable;
-            disposable?.Dispose();
-        }
-        RenderedGeometry.Clear();
-
-        _disposed = true;
-    }
+    public MRect? Extent => Geometry?.EnvelopeInternal.ToMRect();
 
     public void CoordinateVisitor(Action<double, double, CoordinateSetter> visit)
     {

@@ -26,6 +26,14 @@ In Index.razor add this to the to Page.
         </div>
     </div>
 </div>
+
+<style>
+    .canvas-container canvas {
+        width: 100%;
+        height: 80vh;
+    }
+</style>
+
 ```
 ```csharp
 @code 
@@ -43,7 +51,15 @@ In Index.razor add this to the to Page.
     }
 }
 ```
-### Step 5
+
+
+### Step 6
+Run it and you should see a map of the world.
+
+
+### Troubleshooting
+
+### Text is not displayed
 Add Follwing to the Blazor project, is a workaround that text is rendered.
 ```xml
    <ItemGroup>
@@ -51,6 +67,3 @@ Add Follwing to the Blazor project, is a workaround that text is rendered.
     <NativeFileReference Include="$(PKGHarfBuzzSharp_NativeAssets_WebAssembly)\build\netstandard1.0\libHarfBuzzSharp.a\3.1.12\libHarfBuzzSharp.a" />
   </ItemGroup>
 ```	
-
-### Step 6
-Run it and you should see a map of the world.

@@ -27,11 +27,11 @@ public class KeepCenterInMapSample : ISample
 
         map.Navigator.OverridePanBounds = panBounds;
         map.Navigator.OverrideZoomBounds = new MMinMax(0.15, 2500);
-        map.Home = n => n.ZoomToBox(panBounds);
+        map.Navigator.ZoomToBox(panBounds);
 
         return Task.FromResult(map);
     }
-        
+
     private static MRect GetLimitsOfMadagaskar()
     {
         var (minX, minY) = SphericalMercator.FromLonLat(41.8, -27.2);

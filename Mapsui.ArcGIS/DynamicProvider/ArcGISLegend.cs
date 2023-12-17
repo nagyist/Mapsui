@@ -77,15 +77,11 @@ public class ArcGisLegend
         if (data == null)
         {
             using var httpClient = CreateRequest(credentials);
-            using var response = await httpClient.GetAsync(uri);
-            stream = await response.Content.ReadAsStreamAsync();
+            using var response = await httpClient.GetAsync(uri).ConfigureAwait(false);
+            stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             data = StreamHelper.ReadFully(stream);
             _urlPersistentCache?.Add(uri, data);
-#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER                    
             await stream.DisposeAsync();
-#else
-            stream.Dispose();
-#endif
         }
 
         stream = new MemoryStream(data);
@@ -117,7 +113,7 @@ public class ArcGisLegend
 
     private static string CreateRequestUrl(string serviceUrl)
     {
-        var trailing = serviceUrl.Contains("?") ? "&" : "?";
+        var trailing = serviceUrl.Contains('?') ? "&" : "?";
         var requestUrl = $"{serviceUrl}/legend{trailing}f=json";
         return requestUrl;
     }

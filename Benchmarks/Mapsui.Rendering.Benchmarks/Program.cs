@@ -1,5 +1,4 @@
 ﻿using BenchmarkDotNet.Running;
-using Mapsui.Rendering.Benchmarks;
 
 public class Program
 {

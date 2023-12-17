@@ -1,23 +1,12 @@
-﻿#if NET6_0_OR_GREATER
-
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Mapsui.Extensions;
-using Mapsui.Samples.Common.Maps;
 using Mapsui.Samples.Common.Maps.Demo;
 using Mapsui.UI;
-#if __MAUI__
 using Mapsui.UI.Maui;
-#else
-using Mapsui.UI.Forms;
-#endif
 
-#if __MAUI__
 namespace Mapsui.Samples.Maui;
-#else
-namespace Mapsui.Samples.Forms;
-#endif
 
 public sealed class AnimatedMyLocationSample : IMapViewSample, IDisposable
 {
@@ -36,7 +25,7 @@ public sealed class AnimatedMyLocationSample : IMapViewSample, IDisposable
 
         _mapView = (MapView)mapControl;
         var map = OsmSample.CreateMap();
-        map.Home = n => n.CenterOnAndZoomTo(_newLocation.ToMapsui(), n.Resolutions[14]);
+        map.Navigator.CenterOnAndZoomTo(_newLocation.ToMapsui(), map.Navigator.Resolutions[14]);
         mapControl.Map = map;
 
         _mapView.MyLocationLayer.IsMoving = true;
@@ -53,16 +42,16 @@ public sealed class AnimatedMyLocationSample : IMapViewSample, IDisposable
     public bool UpdateLocation => false;
     public bool OnClick(object? sender, EventArgs args)
     {
-        return true; 
+        return true;
     }
 
     private async Task RunTimerAsync()
     {
-        while(true)
+        while (true)
         {
             await _timer.WaitForNextTickAsync();
 
-            _newLocation = new (_newLocation.Latitude + 0.00005, _newLocation.Longitude + 0.00005);                                
+            _newLocation = new(_newLocation.Latitude + 0.00005, _newLocation.Longitude + 0.00005);
 
             _mapView?.MyLocationLayer.UpdateMyLocation(_newLocation, true);
             _mapView?.MyLocationLayer.UpdateMyDirection(_mapView.MyLocationLayer.Direction + 10, 0, true);
@@ -75,4 +64,3 @@ public sealed class AnimatedMyLocationSample : IMapViewSample, IDisposable
         _timer.Dispose();
     }
 }
-#endif

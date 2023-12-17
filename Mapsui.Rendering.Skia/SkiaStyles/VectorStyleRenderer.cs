@@ -26,29 +26,31 @@ public class VectorStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                         PolygonRenderer.Draw(canvas, viewport, layer, vectorStyle, rectFeature, rectFeature.Rect.ToPolygon(), opacity, renderCache, renderCache);
                     break;
                 case PointFeature pointFeature:
-                    SymbolStyleRenderer.DrawSymbol(canvas, viewport, layer, pointFeature.Point.X, pointFeature.Point.Y, new SymbolStyle { Outline = vectorStyle.Outline, Fill = vectorStyle.Fill, Line = vectorStyle.Line });
+                    SymbolStyleRenderer.DrawXY(canvas, viewport, layer, pointFeature.Point.X, pointFeature.Point.Y, CreateSymbolStyle(vectorStyle), renderCache);
                     break;
                 case GeometryFeature geometryFeature:
                     switch (geometryFeature.Geometry)
                     {
                         case GeometryCollection collection:
-                            for (var i = 0; i < collection.NumGeometries; i++)
-                                Draw(canvas, viewport, layer, new GeometryFeature(collection.GetGeometryN(i)), style, renderCache, iteration);
+                            GeometryCollectionRenderer.Draw(canvas, viewport, layer, vectorStyle, feature, collection, opacity, renderCache);
                             break;
                         case Point point:
-                            Draw(canvas, viewport, layer, new PointFeature(point.X, point.Y), style, renderCache, iteration);
+                            SymbolStyleRenderer.DrawXY(canvas, viewport, layer, point.X, point.Y, CreateSymbolStyle(vectorStyle), renderCache);
                             break;
                         case Polygon polygon:
                             PolygonRenderer.Draw(canvas, viewport, layer, vectorStyle, feature, polygon, opacity, renderCache, renderCache);
                             break;
                         case LineString lineString:
-                            LineStringRenderer.Draw(canvas, viewport, layer, vectorStyle, lineString, opacity, renderCache);
+                            LineStringRenderer.Draw(canvas, viewport, layer, vectorStyle, feature, lineString, opacity, renderCache);
                             break;
                         case null:
                             throw new ArgumentException($"Geometry is null, Layer: {layer.Name}");
                         default:
                             throw new ArgumentException($"Unknown geometry type: {geometryFeature.Geometry?.GetType()}, Layer: {layer.Name}");
                     }
+                    break;
+                default:
+                    Logger.Log(LogLevel.Warning, $"{nameof(VectorStyleRenderer)} can not render feature of type '{feature.GetType()}', Layer: {layer.Name}");
                     break;
             }
         }
@@ -58,6 +60,11 @@ public class VectorStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         }
 
         return true;
+    }
+
+    private static SymbolStyle CreateSymbolStyle(VectorStyle vectorStyle)
+    {
+        return new SymbolStyle { Outline = vectorStyle.Outline, Fill = vectorStyle.Fill, Line = vectorStyle.Line };
     }
 
     bool IFeatureSize.NeedsFeature => false;

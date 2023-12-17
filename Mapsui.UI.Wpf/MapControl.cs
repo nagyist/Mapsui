@@ -91,7 +91,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             StrokeThickness = 3,
             RadiusX = 0.5,
             RadiusY = 0.5,
-            StrokeDashArray = new DoubleCollection { 3.0 },
+            StrokeDashArray = [3.0],
             Opacity = 0.3,
             VerticalAlignment = VerticalAlignment.Top,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -121,6 +121,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         };
     }
 
+    [Obsolete("Use Info and ILayerFeatureInfo")]
     public event EventHandler<FeatureInfoEventArgs>? FeatureInfo; // todo: Remove and add sample for alternative
 
     internal void InvalidateCanvas()
@@ -168,6 +169,9 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void MapControlMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (HandleTouching(e.GetPosition(this).ToMapsui(), true, e.ClickCount, ShiftPressed))
+            return;
+
         var touchPosition = e.GetPosition(this).ToMapsui();
         _previousMousePosition = touchPosition;
         _downMousePosition = touchPosition;
@@ -185,6 +189,8 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private void MapControlMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         var mousePosition = e.GetPosition(this).ToMapsui();
+        if (HandleTouched(mousePosition, true, e.ClickCount, ShiftPressed))
+            return;
 
         if (_previousMousePosition != null)
         {
@@ -196,7 +202,9 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             }
             else if (_downMousePosition != null && IsClick(mousePosition, _downMousePosition))
             {
+#pragma warning disable CS0612 // Type or member is obsolete
                 HandleFeatureInfo(e);
+#pragma warning restore CS0612 // Type or member is obsolete
                 OnInfo(CreateMapInfoEventArgs(mousePosition, _downMousePosition, e.ClickCount));
             }
         }
@@ -268,6 +276,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         });
     }
 
+    [Obsolete]
     private void HandleFeatureInfo(MouseButtonEventArgs e)
     {
         if (FeatureInfo == null) return; // don't fetch if you the call back is not set.
@@ -289,14 +298,17 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void MapControlMouseMove(object sender, MouseEventArgs e)
     {
+        if (HandleMoving(e.GetPosition(this).ToMapsui(), e.LeftButton == MouseButtonState.Pressed, 0, ShiftPressed))
+            return;
+
         if (IsInBoxZoomMode())
         {
-            DrawBbox(e.GetPosition(this));
+            DrawRectangle(e.GetPosition(this));
             return;
         }
 
         _currentMousePosition = e.GetPosition(this).ToMapsui();
-        
+
         if (_mouseDown)
         {
             if (_previousMousePosition == null)
@@ -325,7 +337,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         RunOnUIThread(() => _selectRectangle.Visibility = Visibility.Collapsed);
     }
 
-    private void DrawBbox(Point newPos)
+    private void DrawRectangle(Point newPos)
     {
         if (_mouseDown)
         {
@@ -430,11 +442,10 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private float GetPixelDensity()
     {
-        var presentationSource = PresentationSource.FromVisual(this);
-        if (presentationSource == null) throw new Exception("PresentationSource is null");
-        var compositionTarget = presentationSource.CompositionTarget;
-        if (compositionTarget == null) throw new Exception("CompositionTarget is null");
-
+        var presentationSource = PresentationSource.FromVisual(this) 
+            ?? throw new Exception("PresentationSource is null");
+        var compositionTarget = presentationSource.CompositionTarget 
+            ?? throw new Exception("CompositionTarget is null");
         var matrix = compositionTarget.TransformToDevice;
 
         var dpiX = matrix.M11;
@@ -460,4 +471,6 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         Dispose(true);
         GC.SuppressFinalize(this);
     }
+
+    public static bool ShiftPressed => Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
 }
